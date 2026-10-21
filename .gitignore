@@ -1,0 +1,27 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+artifacts/
+
+## JetBrains Rider 
+.idea/
+
+## Variables de entorno y secretos (CT-07: nunca se versionan)
+.env
+*.env
+!.env.example
+appsettings.Development.json
+appsettings.Local.json
+
+## Node / frontend (fase posterior)
+node_modules/
+dist/
+.vite/
+
+## Sistema operativo
+Thumbs.db
+.DS_Store

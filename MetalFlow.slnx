@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="MetalFlow.API/MetalFlow.API.csproj" />
+  <Project Path="MetalFlow.Aplicacion/MetalFlow.Aplicacion.csproj" />
+  <Project Path="MetalFlow.Dominio/MetalFlow.Dominio.csproj" />
+  <Project Path="MetalFlow.Infraestructura/MetalFlow.Infraestructura.csproj" />
+</Solution>

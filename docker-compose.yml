@@ -1,0 +1,37 @@
+# Orquestación de MetalFlow (RNF-02, CT-07).
+#
+# En esta primera fase solo se levanta el servicio de base de datos; los
+# contenedores metalflow-api y metalflow-web se incorporarán conforme avance
+# el desarrollo, hasta completar la topología de tres contenedores descrita
+# en el apartado 4.4.2 de la memoria.
+
+services:
+
+  metalflow-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    container_name: metalflow-db
+    environment:
+      ACCEPT_EULA: "Y"
+      # La contraseña se inyecta mediante variable de entorno y no se versiona
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - metalflow-data:/var/opt/mssql
+    networks:
+      - metalflow-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  metalflow-data:
+
+networks:
+  metalflow-net:
+    driver: bridge
