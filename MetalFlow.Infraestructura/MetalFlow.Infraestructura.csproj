@@ -27,7 +27,6 @@
 
   <ItemGroup>
     <Folder Include="ServiciosTecnicos\" />
-    <Folder Include="Persistencia\Repositorios\" />
   </ItemGroup>
 
 </Project>

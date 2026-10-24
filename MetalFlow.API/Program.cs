@@ -1,4 +1,6 @@
+using MetalFlow.Dominio.Repositorios;
 using MetalFlow.Infraestructura.Persistencia;
+using MetalFlow.Infraestructura.Persistencia.Repositorios;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
@@ -16,9 +18,22 @@ var cadenaConexion = builder.Configuration.GetConnectionString("MetalFlowDb")
         "Configúrela mediante los secretos de usuario o la variable de entorno " +
         "ConnectionStrings__MetalFlowDb.");
 
+// Nota: no se habilita la estrategia de reintentos ante fallos transitorios.
+// Dicha estrategia resulta incompatible con las transacciones iniciadas de
+// forma explícita por la unidad de trabajo, necesarias para la atomicidad de
+// la carga masiva (CT-02) y del flujo de reserva (CT-06). Al ejecutarse el
+// gestor en el mismo anfitrión, los fallos transitorios de red que justifican
+// los reintentos no concurren en este despliegue.
 builder.Services.AddDbContext<MetalFlowDbContext>(opciones =>
-    opciones.UseSqlServer(cadenaConexion, sql =>
-        sql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), null)));
+    opciones.UseSqlServer(cadenaConexion));
+
+// ---------------------------------------------------------------------------
+// Acceso a datos
+// Se registra únicamente la unidad de trabajo: los repositorios se obtienen a
+// través de ella, lo que garantiza que todas las escrituras de un caso de uso
+// compartan el mismo contexto y, por tanto, la misma transacción.
+// ---------------------------------------------------------------------------
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 // ---------------------------------------------------------------------------
 // API y documentación
@@ -33,8 +48,8 @@ var app = builder.Build();
 // sistema (OWASP A02, configuración de seguridad defectuosa).
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();                       // Documento OpenAPI en /openapi/v1.json
-    app.MapScalarApiReference(opciones =>   // Interfaz interactiva en /scalar/v1
+    app.MapOpenApi();
+    app.MapScalarApiReference(opciones =>
         opciones.WithTitle("MetalFlow API")
                 .WithTheme(ScalarTheme.BluePlanet));
 }
