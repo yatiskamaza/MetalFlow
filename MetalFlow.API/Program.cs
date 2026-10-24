@@ -1,7 +1,13 @@
+using System.Text;
+using MetalFlow.Aplicacion.Abstracciones;
+using MetalFlow.Aplicacion.Servicios;
 using MetalFlow.Dominio.Repositorios;
 using MetalFlow.Infraestructura.Persistencia;
 using MetalFlow.Infraestructura.Persistencia.Repositorios;
+using MetalFlow.Infraestructura.ServiciosTecnicos;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,19 +27,52 @@ var cadenaConexion = builder.Configuration.GetConnectionString("MetalFlowDb")
 // Nota: no se habilita la estrategia de reintentos ante fallos transitorios.
 // Dicha estrategia resulta incompatible con las transacciones iniciadas de
 // forma explícita por la unidad de trabajo, necesarias para la atomicidad de
-// la carga masiva (CT-02) y del flujo de reserva (CT-06). Al ejecutarse el
-// gestor en el mismo anfitrión, los fallos transitorios de red que justifican
-// los reintentos no concurren en este despliegue.
+// la carga masiva (CT-02) y del flujo de reserva (CT-06).
 builder.Services.AddDbContext<MetalFlowDbContext>(opciones =>
     opciones.UseSqlServer(cadenaConexion));
 
 // ---------------------------------------------------------------------------
-// Acceso a datos
-// Se registra únicamente la unidad de trabajo: los repositorios se obtienen a
-// través de ella, lo que garantiza que todas las escrituras de un caso de uso
-// compartan el mismo contexto y, por tanto, la misma transacción.
+// Acceso a datos y servicios técnicos
 // ---------------------------------------------------------------------------
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddSingleton<IServicioHash, ServicioHashBCrypt>();
+builder.Services.AddSingleton<IProveedorTokens, ProveedorJWT>();
+
+// ---------------------------------------------------------------------------
+// Servicios de caso de uso
+// ---------------------------------------------------------------------------
+builder.Services.AddScoped<ServicioIdentidad>();
+
+// ---------------------------------------------------------------------------
+// Autenticación mediante JSON Web Tokens (RF-01, CT-01)
+// La validación comprueba la firma, el emisor, el destinatario y la vigencia
+// del token. El margen de tolerancia temporal se reduce a cero: el valor por
+// defecto de cinco minutos prolongaría la validez efectiva más allá de lo
+// declarado.
+// ---------------------------------------------------------------------------
+var claveDeFirma = builder.Configuration["Jwt:Secret"]
+    ?? throw new InvalidOperationException(
+        "No se ha definido la clave de firma 'Jwt:Secret'. " +
+        "Configúrela mediante los secretos de usuario o la variable de entorno Jwt__Secret.");
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(opciones =>
+    {
+        opciones.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(claveDeFirma)),
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "MetalFlow",
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "MetalFlowClientes",
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 // ---------------------------------------------------------------------------
 // API y documentación
@@ -55,6 +94,12 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// El orden es significativo: la autenticación identifica al solicitante y la
+// autorización decide si puede acceder al recurso, por lo que debe precederla.
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapControllers();
 
 // Extremo de comprobación: permite verificar que la API responde y que la
@@ -65,7 +110,7 @@ app.MapGet("/api/v1/estado", async (MetalFlowDbContext db) =>
     return Results.Ok(new
     {
         servicio = "MetalFlow.API",
-        version = "0.1.0",
+        version = "0.2.0",
         baseDeDatos = conectada ? "conectada" : "no disponible"
     });
 });

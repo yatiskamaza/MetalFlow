@@ -10,10 +10,4 @@
     <ProjectReference Include="..\MetalFlow.Dominio\MetalFlow.Dominio.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Dtos\" />
-    <Folder Include="Excepciones\" />
-    <Folder Include="Servicios\" />
-  </ItemGroup>
-
 </Project>

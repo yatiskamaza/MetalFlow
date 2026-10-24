@@ -29,6 +29,18 @@ public class RepositorioEF<T> : IRepositorio<T> where T : class
     public async Task<T?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default)
         => await Conjunto.FindAsync([id], ct);
 
+    public async Task<T?> ObtenerUnoAsync(Expression<Func<T, bool>> criterio,
+                                          CancellationToken ct = default,
+                                          params Expression<Func<T, object>>[] incluir)
+    {
+        IQueryable<T> consulta = Conjunto.AsNoTracking();
+
+        foreach (var relacion in incluir)
+            consulta = consulta.Include(relacion);
+
+        return await consulta.FirstOrDefaultAsync(criterio, ct);
+    }
+
     public async Task<IReadOnlyList<T>> ListarAsync(CancellationToken ct = default)
         => await Conjunto.AsNoTracking().ToListAsync(ct);
 
