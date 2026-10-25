@@ -405,17 +405,6 @@ namespace MetalFlow.Infraestructura.Migrations
                         .HasFilter("[empresa_id] IS NOT NULL");
 
                     b.ToTable("USUARIO", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("0f8fad5b-d9cb-469f-a165-70867728950e"),
-                            Activo = true,
-                            Email = "admin@metalflow.local",
-                            FechaAlta = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Nombre = "Administrador del sistema",
-                            PasswordHash = "$2a$11$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
-                        });
                 });
 
             modelBuilder.Entity("MetalFlow.Dominio.Entidades.UsuarioRol", b =>
@@ -429,13 +418,6 @@ namespace MetalFlow.Infraestructura.Migrations
                     b.HasKey("UsuarioId", "Rol");
 
                     b.ToTable("USUARIO_ROL", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            UsuarioId = new Guid("0f8fad5b-d9cb-469f-a165-70867728950e"),
-                            Rol = (byte)3
-                        });
                 });
 
             modelBuilder.Entity("MetalFlow.Dominio.Entidades.Anuncio", b =>

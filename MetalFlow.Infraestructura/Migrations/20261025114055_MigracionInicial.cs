@@ -243,16 +243,6 @@ namespace MetalFlow.Infraestructura.Migrations
                     { 7, "EN AW-6082", "Aluminio", "EN 485-2" }
                 });
 
-            migrationBuilder.InsertData(
-                table: "USUARIO",
-                columns: new[] { "Id", "Activo", "Email", "empresa_id", "FechaAlta", "Nombre", "PasswordHash" },
-                values: new object[] { new Guid("0f8fad5b-d9cb-469f-a165-70867728950e"), true, "admin@metalflow.local", null, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Administrador del sistema", "$2a$11$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy" });
-
-            migrationBuilder.InsertData(
-                table: "USUARIO_ROL",
-                columns: new[] { "Rol", "UsuarioId" },
-                values: new object[] { (byte)3, new Guid("0f8fad5b-d9cb-469f-a165-70867728950e") });
-
             migrationBuilder.CreateIndex(
                 name: "UQ_ANUNCIO_ITEM",
                 table: "ANUNCIO",

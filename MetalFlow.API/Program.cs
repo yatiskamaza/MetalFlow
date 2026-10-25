@@ -82,6 +82,24 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+// ---------------------------------------------------------------------------
+// Aprovisionamiento de la cuenta de administrador
+// Se ejecuta en el arranque, con un ámbito propio, por cuanto los servicios
+// registrados por petición no están disponibles fuera de una. La operación es
+// idempotente: no altera la cuenta si esta ya existe.
+// ---------------------------------------------------------------------------
+using (var ambito = app.Services.CreateScope())
+{
+    var contexto = ambito.ServiceProvider.GetRequiredService<MetalFlowDbContext>();
+    var hash = ambito.ServiceProvider.GetRequiredService<IServicioHash>();
+    var registro = ambito.ServiceProvider
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("Inicializacion");
+
+    await InicializadorDeDatos.AprovisionarAdministradorAsync(
+        contexto, app.Configuration, hash, registro);
+}
+
 // La documentación interactiva solo se expone en desarrollo: publicarla en
 // producción ampliaría innecesariamente la superficie de exposición del
 // sistema (OWASP A02, configuración de seguridad defectuosa).
