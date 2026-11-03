@@ -1,4 +1,5 @@
 using System.Text;
+using MetalFlow.API.Middleware;
 using MetalFlow.Aplicacion.Abstracciones;
 using MetalFlow.Aplicacion.Servicios;
 using MetalFlow.Dominio.Repositorios;
@@ -8,6 +9,7 @@ using MetalFlow.Infraestructura.ServiciosTecnicos;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Mvc;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -42,6 +44,50 @@ builder.Services.AddSingleton<IProveedorTokens, ProveedorJWT>();
 // Servicios de caso de uso
 // ---------------------------------------------------------------------------
 builder.Services.AddScoped<ServicioIdentidad>();
+
+// ---------------------------------------------------------------------------
+// Tratamiento homogéneo de errores (apartado 4.2; Tabla 23, OWASP A02 y A10)
+// El manejador traduce las excepciones a códigos de estado y garantiza que
+// ninguna respuesta incorpore trazas ni detalles de la implementación.
+// AddProblemDetails normaliza asimismo las respuestas de error que genera el
+// propio marco, como las derivadas de la validación de los objetos de entrada.
+// ---------------------------------------------------------------------------
+builder.Services.AddExceptionHandler<ManejadorGlobalDeExcepciones>();
+builder.Services.AddProblemDetails();
+
+// ---------------------------------------------------------------------------
+// Respuestas de validación de los objetos de entrada
+//
+// La validación de los objetos de entrada la resuelve el propio marco a partir
+// de las anotaciones declaradas en los objetos de transferencia, sin que llegue
+// a producirse excepción alguna; dichas respuestas no pasan, por tanto, por el
+// manejador global. Se personaliza aquí su composición para que el título y la
+// estructura coincidan con los de las restantes respuestas de error del
+// sistema, pues de otro modo la interfaz habría de contemplar un formato y un
+// idioma distintos según el origen del error. El detalle de cada campo procede
+// de las anotaciones declaradas en los objetos de transferencia.
+// ---------------------------------------------------------------------------
+builder.Services.Configure<ApiBehaviorOptions>(opciones =>
+{
+    opciones.InvalidModelStateResponseFactory = contexto =>
+    {
+        var problema = new ValidationProblemDetails(contexto.ModelState)
+        {
+            Title = "Se han detectado errores de validación",
+            Detail = "Uno o varios campos de la solicitud no son válidos. " +
+                     "Consulte el detalle correspondiente a cada campo.",
+            Status = StatusCodes.Status400BadRequest,
+            Instance = contexto.HttpContext.Request.Path
+        };
+
+        problema.Extensions["traceId"] = contexto.HttpContext.TraceIdentifier;
+
+        return new BadRequestObjectResult(problema)
+        {
+            ContentTypes = { "application/problem+json" }
+        };
+    };
+});
 
 // ---------------------------------------------------------------------------
 // Autenticación mediante JSON Web Tokens (RF-01, CT-01)
@@ -100,6 +146,13 @@ using (var ambito = app.Services.CreateScope())
         contexto, app.Configuration, hash, registro);
 }
 
+// El manejador de excepciones debe situarse al inicio del canal de peticiones,
+// de modo que alcance a los errores producidos en cualquier componente
+// posterior. Sustituye a la página de diagnóstico que el marco habilita por
+// defecto en desarrollo, lo que garantiza un comportamiento uniforme en todos
+// los entornos y evita que las trazas se expongan por configuración.
+app.UseExceptionHandler();
+
 // La documentación interactiva solo se expone en desarrollo: publicarla en
 // producción ampliaría innecesariamente la superficie de exposición del
 // sistema (OWASP A02, configuración de seguridad defectuosa).
@@ -128,7 +181,7 @@ app.MapGet("/api/v1/estado", async (MetalFlowDbContext db) =>
     return Results.Ok(new
     {
         servicio = "MetalFlow.API",
-        version = "0.2.0",
+        version = "0.3.0",
         baseDeDatos = conectada ? "conectada" : "no disponible"
     });
 });
