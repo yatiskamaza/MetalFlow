@@ -49,45 +49,54 @@ builder.Services.AddScoped<ServicioIdentidad>();
 // Tratamiento homogéneo de errores (apartado 4.2; Tabla 23, OWASP A02 y A10)
 // El manejador traduce las excepciones a códigos de estado y garantiza que
 // ninguna respuesta incorpore trazas ni detalles de la implementación.
-// AddProblemDetails normaliza asimismo las respuestas de error que genera el
-// propio marco, como las derivadas de la validación de los objetos de entrada.
 // ---------------------------------------------------------------------------
 builder.Services.AddExceptionHandler<ManejadorGlobalDeExcepciones>();
 builder.Services.AddProblemDetails();
 
 // ---------------------------------------------------------------------------
-// Respuestas de validación de los objetos de entrada
+// API y documentación
 //
-// La validación de los objetos de entrada la resuelve el propio marco a partir
-// de las anotaciones declaradas en los objetos de transferencia, sin que llegue
-// a producirse excepción alguna; dichas respuestas no pasan, por tanto, por el
-// manejador global. Se personaliza aquí su composición para que el título y la
-// estructura coincidan con los de las restantes respuestas de error del
-// sistema, pues de otro modo la interfaz habría de contemplar un formato y un
-// idioma distintos según el origen del error. El detalle de cada campo procede
-// de las anotaciones declaradas en los objetos de transferencia.
+// La personalización de las respuestas de validación se encadena a la propia
+// inscripción de los controladores. El orden resulta determinante: dicha
+// inscripción registra la configuración predeterminada del comportamiento de
+// la API, que asigna su propia fábrica de respuestas sin comprobar si existe
+// una previa. Una configuración declarada con anterioridad quedaría, por
+// tanto, sobrescrita sin producir error alguno.
 // ---------------------------------------------------------------------------
-builder.Services.Configure<ApiBehaviorOptions>(opciones =>
-{
-    opciones.InvalidModelStateResponseFactory = contexto =>
+builder.Services
+    .AddControllers()
+    .ConfigureApiBehaviorOptions(opciones =>
     {
-        var problema = new ValidationProblemDetails(contexto.ModelState)
+        // La validación de los objetos de entrada la resuelve el propio marco
+        // a partir de las anotaciones declaradas en los objetos de
+        // transferencia, sin que llegue a producirse excepción alguna; dichas
+        // respuestas no pasan, por tanto, por el manejador global. Se
+        // personaliza aquí su composición para que el título y la estructura
+        // coincidan con los de las restantes respuestas de error del sistema,
+        // pues de otro modo la interfaz habría de contemplar un formato y un
+        // idioma distintos según el origen del error. El detalle de cada campo
+        // procede de las anotaciones de los objetos de transferencia.
+        opciones.InvalidModelStateResponseFactory = contexto =>
         {
-            Title = "Se han detectado errores de validación",
-            Detail = "Uno o varios campos de la solicitud no son válidos. " +
-                     "Consulte el detalle correspondiente a cada campo.",
-            Status = StatusCodes.Status400BadRequest,
-            Instance = contexto.HttpContext.Request.Path
-        };
+            var problema = new ValidationProblemDetails(contexto.ModelState)
+            {
+                Title = "Se han detectado errores de validación",
+                Detail = "Uno o varios campos de la solicitud no son válidos. " +
+                         "Consulte el detalle correspondiente a cada campo.",
+                Status = StatusCodes.Status400BadRequest,
+                Instance = contexto.HttpContext.Request.Path
+            };
 
-        problema.Extensions["traceId"] = contexto.HttpContext.TraceIdentifier;
+            problema.Extensions["traceId"] = contexto.HttpContext.TraceIdentifier;
 
-        return new BadRequestObjectResult(problema)
-        {
-            ContentTypes = { "application/problem+json" }
+            return new BadRequestObjectResult(problema)
+            {
+                ContentTypes = { "application/problem+json" }
+            };
         };
-    };
-});
+    });
+
+builder.Services.AddOpenApi();
 
 // ---------------------------------------------------------------------------
 // Autenticación mediante JSON Web Tokens (RF-01, CT-01)
@@ -119,12 +128,6 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
-
-// ---------------------------------------------------------------------------
-// API y documentación
-// ---------------------------------------------------------------------------
-builder.Services.AddControllers();
-builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
