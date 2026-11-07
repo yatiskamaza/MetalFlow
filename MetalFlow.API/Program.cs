@@ -46,6 +46,7 @@ builder.Services.AddSingleton<IProveedorTokens, ProveedorJWT>();
 // ---------------------------------------------------------------------------
 builder.Services.AddScoped<ServicioIdentidad>();
 builder.Services.AddScoped<ServicioInventario>();
+builder.Services.AddScoped<ServicioAdministracion>();
 
 // ---------------------------------------------------------------------------
 // Tratamiento homogéneo de errores (apartado 4.2; Tabla 23, OWASP A02 y A10)
