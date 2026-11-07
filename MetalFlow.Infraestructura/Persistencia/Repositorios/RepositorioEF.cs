@@ -32,24 +32,18 @@ public class RepositorioEF<T> : IRepositorio<T> where T : class
     public async Task<T?> ObtenerUnoAsync(Expression<Func<T, bool>> criterio,
                                           CancellationToken ct = default,
                                           params Expression<Func<T, object>>[] incluir)
-    {
-        IQueryable<T> consulta = Conjunto.AsNoTracking();
-
-        foreach (var relacion in incluir)
-            consulta = consulta.Include(relacion);
-
-        return await consulta.FirstOrDefaultAsync(criterio, ct);
-    }
+        => await Aplicar(incluir).FirstOrDefaultAsync(criterio, ct);
 
     public async Task<IReadOnlyList<T>> ListarAsync(CancellationToken ct = default)
         => await Conjunto.AsNoTracking().ToListAsync(ct);
 
-    public async Task<IReadOnlyList<T>> BuscarAsync(
-        Expression<Func<T, bool>> criterio, CancellationToken ct = default)
-        => await Conjunto.AsNoTracking().Where(criterio).ToListAsync(ct);
+    public async Task<IReadOnlyList<T>> BuscarAsync(Expression<Func<T, bool>> criterio,
+                                                    CancellationToken ct = default,
+                                                    params Expression<Func<T, object>>[] incluir)
+        => await Aplicar(incluir).Where(criterio).ToListAsync(ct);
 
-    public async Task<bool> ExisteAsync(
-        Expression<Func<T, bool>> criterio, CancellationToken ct = default)
+    public async Task<bool> ExisteAsync(Expression<Func<T, bool>> criterio,
+                                        CancellationToken ct = default)
         => await Conjunto.AnyAsync(criterio, ct);
 
     public async Task AgregarAsync(T entidad, CancellationToken ct = default)
@@ -61,4 +55,19 @@ public class RepositorioEF<T> : IRepositorio<T> where T : class
     public void Actualizar(T entidad) => Conjunto.Update(entidad);
 
     public void Eliminar(T entidad) => Conjunto.Remove(entidad);
+
+    /// <summary>
+    /// Compone la consulta incorporando las relaciones solicitadas. Las
+    /// consultas de lectura prescinden del seguimiento de cambios, por cuanto
+    /// las entidades recuperadas no son objeto de modificación posterior.
+    /// </summary>
+    private IQueryable<T> Aplicar(Expression<Func<T, object>>[] incluir)
+    {
+        IQueryable<T> consulta = Conjunto.AsNoTracking();
+
+        foreach (var relacion in incluir)
+            consulta = consulta.Include(relacion);
+
+        return consulta;
+    }
 }

@@ -13,19 +13,26 @@ Fase F3 (desarrollo del backend). Implementado hasta el momento:
 - Contexto de persistencia con restricciones, índices y catálogo de materiales.
 - Acceso a datos mediante los patrones Repository y Unit of Work.
 - Autenticación con JSON Web Tokens y derivación de contraseñas con BCrypt (RF-01).
+- Tratamiento homogéneo de errores mediante manejador global de excepciones.
+- Gestión manual del inventario con autorización por pertenencia (RF-03).
+- Consulta del catálogo normalizado de aleaciones (RD-03).
 
-Pendiente: gestión de inventario, motor de búsqueda, proceso micro-ETL, flujo de
-reserva, frontend y contenedorización completa.
+Pendiente: verificación de empresas, motor de búsqueda paramétrica, proceso
+micro-ETL, flujo de reserva, publicación de anuncios, frontend y
+contenedorización completa.
 
 ## Estructura de la solución
 
 ```
 MetalFlow.Dominio          Entidades y reglas de negocio. No depende de nadie.
-MetalFlow.Aplicacion       Servicios de caso de uso, objetos de transferencia
-                           y abstracciones de los servicios técnicos.
+MetalFlow.Aplicacion       Servicios de caso de uso, objetos de transferencia,
+                           excepciones propias y abstracciones de los
+                           servicios técnicos.
 MetalFlow.Infraestructura  Persistencia (EF Core), repositorios y servicios
                            técnicos (hash y tokens).
-MetalFlow.API              Controladores REST. Único punto de entrada.
+MetalFlow.API              Controladores REST, manejador de errores y
+                           declaración de la especificación. Único punto de
+                           entrada.
 ```
 
 La dirección de las referencias entre proyectos materializa la inversión de
@@ -76,6 +83,8 @@ docker compose ps          # debe figurar como healthy
 
 La primera ejecución descarga la imagen de SQL Server. Bajo emulación Rosetta,
 el contenedor puede tardar cerca de un minuto en pasar de `starting` a `healthy`.
+Conviene esperar a dicho estado antes de arrancar la API, que de otro modo
+fallaría al intentar aprovisionar la cuenta del administrador.
 
 ### 3. Configurar los secretos de la aplicación
 
@@ -86,7 +95,7 @@ directorio del proyecto. Defina los mismos valores del paso 1:
 ```bash
 dotnet user-secrets set "ConnectionStrings:MetalFlowDb" "Server=localhost,1433;Database=MetalFlowDb;User Id=sa;Password=SU_CONTRASENA;TrustServerCertificate=True" --project MetalFlow.API
 dotnet user-secrets set "Jwt:Secret" 'SU_CLAVE_DE_FIRMA' --project MetalFlow.API
-dotnet user-secrets set "Administrador:Email" "admin@metalflow.local" --project MetalFlow.API
+dotnet user-secrets set "Administrador:Email" 'SU_CORREO_DE_ADMINISTRADOR' --project MetalFlow.API
 dotnet user-secrets set "Administrador:Password" 'SU_CONTRASENA_DE_ADMINISTRADOR' --project MetalFlow.API
 ```
 
@@ -126,17 +135,54 @@ se modifica.
 Direcciones disponibles:
 
 - Documentación interactiva: `https://localhost:7054/scalar/v1`
+- Especificación OpenAPI: `https://localhost:7054/openapi/v1.json`
 - Comprobación de estado: `https://localhost:7054/api/v1/estado`
 
-### 7. Verificar el funcionamiento
+## Uso de la API
 
-Desde la documentación interactiva:
+Salvo el registro y el acceso, todos los extremos exigen un token válido. La
+documentación interactiva permite introducirlo una sola vez, al declarar la
+especificación el esquema de autenticación correspondiente.
 
-1. `POST /api/v1/auth/registro` — alta de una empresa y su cuenta de acceso.
-   Devuelve 201 y la empresa queda pendiente de verificación.
-2. `POST /api/v1/auth/login` — con esas credenciales. Devuelve 200 y el token.
-3. `POST /api/v1/auth/login` — con la contraseña alterada. Debe devolver 401 con
-   un mensaje genérico.
+| Método | Ruta | Rol | Caso de uso |
+|---|---|---|---|
+| POST | `/api/v1/auth/registro` | público | CU-01 |
+| POST | `/api/v1/auth/login` | público | CU-02 |
+| GET | `/api/v1/materiales` | autenticado | — |
+| GET | `/api/v1/items` | proveedor | CU-04 |
+| GET | `/api/v1/items/{id}` | proveedor | CU-04 |
+| POST | `/api/v1/items` | proveedor | CU-04 |
+| PUT | `/api/v1/items/{id}` | proveedor | CU-04 |
+| DELETE | `/api/v1/items/{id}` | proveedor | CU-04 |
+
+### Verificación de empresas
+
+Una empresa registrada queda pendiente de verificación y no puede incorporar
+material hasta que esta se complete (RD-02). El extremo correspondiente (CU-10)
+aún no está implementado, de modo que durante el desarrollo ha de realizarse
+directamente sobre la base de datos:
+
+```bash
+docker exec -it metalflow-db /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'SU_CONTRASENA' -C -d MetalFlowDb \
+  -Q "UPDATE EMPRESA SET Verificada = 1 WHERE Nif = 'EL_NIF'"
+```
+
+### Comprobación del funcionamiento
+
+1. `POST /api/v1/auth/registro` — alta de empresa. Devuelve 201 y queda
+   pendiente de verificación.
+2. `POST /api/v1/auth/login` — devuelve 200 y el token.
+3. `POST /api/v1/auth/login` con la contraseña alterada — devuelve 401 con un
+   mensaje genérico.
+4. `GET /api/v1/materiales` — devuelve el catálogo de aleaciones.
+5. `POST /api/v1/items` — alta de un ítem. Devuelve 201.
+6. `PUT` y `DELETE` sobre ese ítem — devuelven 200 y 204 respectivamente; la
+   baja es lógica y el ítem pasa a estado retirado.
+7. Cualquier extremo sin token — devuelve 401:
+   `curl -k -i https://localhost:7054/api/v1/items`
+8. Un ítem perteneciente a otra empresa — devuelve 403, con independencia de
+   que la cuenta solicitante ostente el rol de proveedor.
 
 ## Gestión de la configuración sensible
 
@@ -161,4 +207,7 @@ el arranque a partir de la configuración del entorno.
 | `ServicioIdentidad` / `ProveedorJWT` | RF-01, CT-01 | 4.4.1 |
 | `ServicioHashBCrypt` | RNF-03, CT-08 | 4.7 |
 | `InicializadorDeDatos` | RD-02 | 4.5.2 |
+| `ManejadorGlobalDeExcepciones` | RNF-03 | 4.2, 4.7 |
+| `ServicioInventario` / `InventarioController` | RF-03, RD-01 | 4.4.1 |
+| `ClaimsPrincipalExtensiones` | RNF-03, CT-09 | 4.7 |
 | `docker-compose.yml` | RNF-02, CT-07 | 4.4.2 |

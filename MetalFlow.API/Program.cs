@@ -6,6 +6,7 @@ using MetalFlow.Dominio.Repositorios;
 using MetalFlow.Infraestructura.Persistencia;
 using MetalFlow.Infraestructura.Persistencia.Repositorios;
 using MetalFlow.Infraestructura.ServiciosTecnicos;
+using MetalFlow.API.Documentacion;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -44,6 +45,7 @@ builder.Services.AddSingleton<IProveedorTokens, ProveedorJWT>();
 // Servicios de caso de uso
 // ---------------------------------------------------------------------------
 builder.Services.AddScoped<ServicioIdentidad>();
+builder.Services.AddScoped<ServicioInventario>();
 
 // ---------------------------------------------------------------------------
 // Tratamiento homogéneo de errores (apartado 4.2; Tabla 23, OWASP A02 y A10)
@@ -96,7 +98,8 @@ builder.Services
         };
     });
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(opciones =>
+    opciones.AddDocumentTransformer<TransformadorDeSeguridadOpenApi>());
 
 // ---------------------------------------------------------------------------
 // Autenticación mediante JSON Web Tokens (RF-01, CT-01)

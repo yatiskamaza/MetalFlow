@@ -4,8 +4,9 @@ namespace MetalFlow.Dominio.Entidades;
 
 /// <summary>
 /// Entidad central del sistema. Materializa la propuesta de valor del proyecto:
-/// a diferencia de los catálogos organizados por peso, los atributos dimensionales
-/// son de primer nivel y constituyen el eje de indexación del catálogo (RF-04).
+/// a diferencia de los catálogos organizados por peso, los atributos
+/// dimensionales son de primer nivel y constituyen el eje de indexación del
+/// catálogo (RF-04).
 /// </summary>
 public class ItemInventario
 {
@@ -47,10 +48,7 @@ public class ItemInventario
                           decimal espesorMm, int cantidad, ClasificacionRegulatoria clasificacion,
                           decimal? pesoKg = null, string? ubicacion = null, Guid? cargaId = null)
     {
-        if (largoMm <= 0 || anchoMm <= 0 || espesorMm <= 0)
-            throw new ArgumentException("Las dimensiones deben ser estrictamente positivas.");
-        if (cantidad <= 0)
-            throw new ArgumentException("La cantidad debe ser estrictamente positiva.");
+        ValidarMedidas(largoMm, anchoMm, espesorMm, cantidad, pesoKg);
 
         Id = Guid.NewGuid();
         EmpresaId = empresaId;
@@ -65,6 +63,35 @@ public class ItemInventario
         CargaId = cargaId;
         Estado = EstadoItem.Disponible;
         FechaAlta = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Modifica los datos del ítem. La operación se rechaza si el ítem no se
+    /// encuentra disponible: alterar las características de una pieza ya
+    /// reservada induciría a error a la empresa compradora, que acudiría a
+    /// recoger un material distinto del que consultó.
+    ///
+    /// No admite la modificación de la empresa propietaria ni de la carga de
+    /// origen, por constituir ambas datos de trazabilidad (RD-04).
+    /// </summary>
+    public void Actualizar(int materialId, decimal largoMm, decimal anchoMm, decimal espesorMm,
+                           int cantidad, ClasificacionRegulatoria clasificacion,
+                           decimal? pesoKg, string? ubicacion)
+    {
+        if (Estado != EstadoItem.Disponible)
+            throw new InvalidOperationException(
+                "Solo puede modificarse un ítem disponible.");
+
+        ValidarMedidas(largoMm, anchoMm, espesorMm, cantidad, pesoKg);
+
+        MaterialId = materialId;
+        LargoMm = largoMm;
+        AnchoMm = anchoMm;
+        EspesorMm = espesorMm;
+        Cantidad = cantidad;
+        Clasificacion = clasificacion;
+        PesoKg = pesoKg;
+        Ubicacion = ubicacion;
     }
 
     /// <summary>
@@ -85,8 +112,34 @@ public class ItemInventario
         Estado = EstadoItem.Disponible;
     }
 
-    public void Retirar() => Estado = EstadoItem.Retirado;
+    /// <summary>
+    /// Baja lógica del ítem. No se elimina el registro, por cuanto las
+    /// reservas que lo refieran deben conservarse como histórico de
+    /// operaciones y su procedencia constituye información de trazabilidad
+    /// (RD-04). Un ítem retirado deja de figurar en los resultados de búsqueda.
+    /// </summary>
+    public void Retirar()
+    {
+        if (Estado == EstadoItem.Reservado)
+            throw new InvalidOperationException(
+                "No puede retirarse un ítem con una reserva en curso.");
 
-    /// <summary>Un retal se considera reutilizable mientras no haya sido retirado del catálogo (RD-01).</summary>
+        Estado = EstadoItem.Retirado;
+    }
+
+    /// <summary>Un retal se considera reutilizable mientras no haya sido retirado (RD-01).</summary>
     public bool EsReutilizable() => Estado != EstadoItem.Retirado;
+
+    public bool PerteneceA(Guid empresaId) => EmpresaId == empresaId;
+
+    private static void ValidarMedidas(decimal largoMm, decimal anchoMm, decimal espesorMm,
+                                       int cantidad, decimal? pesoKg)
+    {
+        if (largoMm <= 0 || anchoMm <= 0 || espesorMm <= 0)
+            throw new ArgumentException("Las dimensiones deben ser estrictamente positivas.");
+        if (cantidad <= 0)
+            throw new ArgumentException("La cantidad debe ser estrictamente positiva.");
+        if (pesoKg is <= 0)
+            throw new ArgumentException("El peso, de indicarse, debe ser estrictamente positivo.");
+    }
 }

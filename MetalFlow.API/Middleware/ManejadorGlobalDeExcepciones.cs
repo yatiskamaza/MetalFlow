@@ -95,6 +95,16 @@ public class ManejadorGlobalDeExcepciones : IExceptionHandler
                 "Credenciales no válidas",
                 e.Message),
 
+            ExcepcionAccesoDenegado e => (
+                StatusCodes.Status403Forbidden,
+                "Acceso denegado",
+                e.Message),
+
+            ExcepcionNoEncontrado e => (
+                StatusCodes.Status404NotFound,
+                "Recurso no encontrado",
+                e.Message),
+
             ExcepcionConflicto e => (
                 StatusCodes.Status409Conflict,
                 "Conflicto con un registro existente",
