@@ -239,7 +239,7 @@ namespace MetalFlow.Infraestructura.Migrations
                     b.HasIndex("Estado", "EspesorMm", "LargoMm", "AnchoMm")
                         .HasDatabaseName("IX_ITEM_BUSQUEDA_PARAMETRICA");
 
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("Estado", "EspesorMm", "LargoMm", "AnchoMm"), new[] { "MaterialId", "EmpresaId", "Cantidad" });
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("Estado", "EspesorMm", "LargoMm", "AnchoMm"), new[] { "MaterialId", "EmpresaId", "Cantidad", "FechaAlta" });
 
                     b.ToTable("ITEM_INVENTARIO", null, t =>
                         {

@@ -59,7 +59,7 @@ public class ItemInventarioConfiguracion : IEntityTypeConfiguration<ItemInventar
         // ---------------------------------------------------------------
         b.HasIndex(i => new { i.Estado, i.EspesorMm, i.LargoMm, i.AnchoMm })
          .HasDatabaseName("IX_ITEM_BUSQUEDA_PARAMETRICA")
-         .IncludeProperties(i => new { i.MaterialId, i.EmpresaId, i.Cantidad });
+         .IncludeProperties(i => new { i.MaterialId, i.EmpresaId, i.Cantidad, i.FechaAlta });
 
         b.HasIndex(i => i.MaterialId).HasDatabaseName("IX_ITEM_MATERIAL");
         b.HasIndex(i => i.EmpresaId).HasDatabaseName("IX_ITEM_EMPRESA");

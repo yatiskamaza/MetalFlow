@@ -40,6 +40,8 @@ builder.Services.AddDbContext<MetalFlowDbContext>(opciones =>
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddSingleton<IServicioHash, ServicioHashBCrypt>();
 builder.Services.AddSingleton<IProveedorTokens, ProveedorJWT>();
+builder.Services.AddScoped<IRepositorioCatalogo, RepositorioCatalogo>();
+builder.Services.AddScoped<MotorBusqueda>();
 
 // ---------------------------------------------------------------------------
 // Servicios de caso de uso
