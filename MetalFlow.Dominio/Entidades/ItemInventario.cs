@@ -7,6 +7,13 @@ namespace MetalFlow.Dominio.Entidades;
 /// a diferencia de los catálogos organizados por peso, los atributos
 /// dimensionales son de primer nivel y constituyen el eje de indexación del
 /// catálogo (RF-04).
+///
+/// CICLO DE VIDA
+///
+/// Un ítem nace disponible. Puede reservarse, y desde ahí volver a estar
+/// disponible —si la reserva se cancela o expira— o quedar retirado, si la
+/// operación se perfecciona. Puede asimismo retirarse directamente por
+/// decisión de su propietario. El estado retirado es terminal.
 /// </summary>
 public class ItemInventario
 {
@@ -102,21 +109,48 @@ public class ItemInventario
     {
         if (Estado != EstadoItem.Disponible)
             throw new InvalidOperationException("Solo puede reservarse un ítem disponible.");
+
         Estado = EstadoItem.Reservado;
     }
 
+    /// <summary>
+    /// Devuelve el ítem al catálogo. Se invoca desde la cancelación y desde la
+    /// expiración de la reserva que lo retenía.
+    /// </summary>
     public void Liberar()
     {
         if (Estado != EstadoItem.Reservado)
             throw new InvalidOperationException("Solo puede liberarse un ítem reservado.");
+
         Estado = EstadoItem.Disponible;
     }
 
     /// <summary>
-    /// Baja lógica del ítem. No se elimina el registro, por cuanto las
-    /// reservas que lo refieran deben conservarse como histórico de
-    /// operaciones y su procedencia constituye información de trazabilidad
-    /// (RD-04). Un ítem retirado deja de figurar en los resultados de búsqueda.
+    /// Retira el ítem del catálogo por haber sido transmitido a la empresa
+    /// compradora. Se invoca desde la confirmación de la reserva.
+    ///
+    /// Comparte estado con la retirada por decisión del propietario, por
+    /// cuanto el efecto sobre el catálogo es idéntico y el modelo no
+    /// distingue ambos supuestos. El motivo de la retirada resulta deducible
+    /// de la existencia de una reserva confirmada sobre el ítem, lo que
+    /// preserva la trazabilidad exigida por RD-04 sin necesidad de un estado
+    /// adicional.
+    /// </summary>
+    public void RetirarPorVenta()
+    {
+        if (Estado != EstadoItem.Reservado)
+            throw new InvalidOperationException(
+                "Solo puede retirarse por transmisión un ítem reservado.");
+
+        Estado = EstadoItem.Retirado;
+    }
+
+    /// <summary>
+    /// Baja lógica del ítem por decisión de su propietario. No se elimina el
+    /// registro, por cuanto las reservas que lo refieran deben conservarse
+    /// como histórico de operaciones y su procedencia constituye información
+    /// de trazabilidad (RD-04). Un ítem retirado deja de figurar en los
+    /// resultados de búsqueda.
     /// </summary>
     public void Retirar()
     {

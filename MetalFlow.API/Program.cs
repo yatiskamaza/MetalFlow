@@ -7,6 +7,7 @@ using MetalFlow.Infraestructura.Persistencia;
 using MetalFlow.Infraestructura.Persistencia.Repositorios;
 using MetalFlow.Infraestructura.ServiciosTecnicos;
 using MetalFlow.API.Documentacion;
+using MetalFlow.API.Tareas;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -49,6 +50,10 @@ builder.Services.AddScoped<MotorBusqueda>();
 builder.Services.AddScoped<ServicioIdentidad>();
 builder.Services.AddScoped<ServicioInventario>();
 builder.Services.AddScoped<ServicioAdministracion>();
+builder.Services.AddScoped<IRepositorioReservas, RepositorioReservas>();
+builder.Services.AddScoped<ServicioReservas>();
+builder.Services.AddScoped<ServicioExpiracionReservas>();
+builder.Services.AddHostedService<ProcesoDeExpiracionDeReservas>();
 
 // ---------------------------------------------------------------------------
 // Tratamiento homogéneo de errores (apartado 4.2; Tabla 23, OWASP A02 y A10)
