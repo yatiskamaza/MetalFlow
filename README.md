@@ -16,10 +16,13 @@ Fase F3 (desarrollo del backend). Implementado hasta el momento:
 - Tratamiento homogéneo de errores mediante manejador global de excepciones.
 - Gestión manual del inventario con autorización por pertenencia (RF-03).
 - Consulta del catálogo normalizado de aleaciones (RD-03).
+- Verificación de empresas por el administrador (CU-10, RD-02).
+- Motor de búsqueda paramétrica del catálogo, con paginación (RF-04, RNF-01).
+- Flujo de reserva con control de concurrencia y expiración automática
+  (RF-05, RD-06).
 
-Pendiente: verificación de empresas, motor de búsqueda paramétrica, proceso
-micro-ETL, flujo de reserva, publicación de anuncios, frontend y
-contenedorización completa.
+Pendiente: gestión de cuentas y supervisión (CU-11), publicación de anuncios
+(RF-06), proceso micro-ETL (RF-02), frontend y contenedorización completa.
 
 ## Estructura de la solución
 
@@ -30,14 +33,20 @@ MetalFlow.Aplicacion       Servicios de caso de uso, objetos de transferencia,
                            servicios técnicos.
 MetalFlow.Infraestructura  Persistencia (EF Core), repositorios y servicios
                            técnicos (hash y tokens).
-MetalFlow.API              Controladores REST, manejador de errores y
-                           declaración de la especificación. Único punto de
-                           entrada.
+MetalFlow.API              Controladores REST, manejador de errores,
+                           declaración de la especificación y procesos de
+                           ejecución periódica. Único punto de entrada.
 ```
 
 La dirección de las referencias entre proyectos materializa la inversión de
 dependencias: el dominio declara las interfaces de repositorio y es la
 infraestructura la que las implementa.
+
+Junto al repositorio genérico conviven dos repositorios especializados. El del
+catálogo compone la consulta de búsqueda de forma diferida, de modo que el
+filtrado se resuelva en el gestor y no en memoria. El de reservas recupera el
+material bajo bloqueo exclusivo, mecanismo que el marco de persistencia no
+permite expresar por sus medios ordinarios.
 
 ## Requisitos previos
 
@@ -111,16 +120,12 @@ autorización expresa del sistema.
 ### 5. Crear el esquema de la base de datos
 
 ```bash
-dotnet ef migrations add MigracionInicial \
-  --project MetalFlow.Infraestructura \
-  --startup-project MetalFlow.API
-
 dotnet ef database update \
   --project MetalFlow.Infraestructura \
   --startup-project MetalFlow.API
 ```
 
-Si el repositorio ya incluye la migración, basta con el segundo comando.
+El repositorio incluye las migraciones, por lo que no es preciso generarlas.
 
 ### 6. Ejecutar la aplicación
 
@@ -130,7 +135,10 @@ dotnet run --project MetalFlow.API
 
 En el arranque se aprovisiona la cuenta del administrador a partir de las
 credenciales del paso 3. La operación es idempotente: si la cuenta ya existe, no
-se modifica.
+se modifica. Se inicia asimismo el proceso periódico de expiración de reservas,
+cuyo intervalo se configura en `appsettings.json` bajo
+`Reservas:IntervaloExpiracionMinutos` y que por defecto se ejecuta cada quince
+minutos.
 
 Direcciones disponibles:
 
@@ -148,41 +156,73 @@ especificación el esquema de autenticación correspondiente.
 |---|---|---|---|
 | POST | `/api/v1/auth/registro` | público | CU-01 |
 | POST | `/api/v1/auth/login` | público | CU-02 |
-| GET | `/api/v1/materiales` | autenticado | — |
+| GET | `/api/v1/materiales` | autenticado | RD-03 |
 | GET | `/api/v1/items` | proveedor | CU-04 |
 | GET | `/api/v1/items/{id}` | proveedor | CU-04 |
 | POST | `/api/v1/items` | proveedor | CU-04 |
 | PUT | `/api/v1/items/{id}` | proveedor | CU-04 |
 | DELETE | `/api/v1/items/{id}` | proveedor | CU-04 |
+| GET | `/api/v1/catalogo` | comprador | CU-07 |
+| GET | `/api/v1/catalogo/{id}` | comprador | CU-08 |
+| POST | `/api/v1/reservas` | comprador | CU-09 |
+| GET | `/api/v1/reservas` | comprador | CU-09 |
+| GET | `/api/v1/reservas/recibidas` | proveedor | CU-09 |
+| PATCH | `/api/v1/reservas/{id}/cancelacion` | ambas partes | CU-09 |
+| PATCH | `/api/v1/reservas/{id}/confirmacion` | proveedor | CU-09 |
+| GET | `/api/v1/empresas` | administrador | CU-10 |
+| GET | `/api/v1/empresas/{id}` | administrador | CU-10 |
+| PATCH | `/api/v1/empresas/{id}/verificacion` | administrador | CU-10 |
 
-### Verificación de empresas
+Conviene distinguir los extremos de inventario de los de catálogo. Los primeros
+operan sobre el material propio de la empresa proveedora y quedan sujetos a la
+autorización por pertenencia; los segundos exponen el material publicado por
+terceros, con un conjunto de datos distinto que excluye toda información de
+contacto hasta la formalización de una reserva.
 
-Una empresa registrada queda pendiente de verificación y no puede incorporar
-material hasta que esta se complete (RD-02). El extremo correspondiente (CU-10)
-aún no está implementado, de modo que durante el desarrollo ha de realizarse
-directamente sobre la base de datos:
+### Flujo completo de uso
 
-```bash
-docker exec -it metalflow-db /opt/mssql-tools18/bin/sqlcmd \
-  -S localhost -U sa -P 'SU_CONTRASENA' -C -d MetalFlowDb \
-  -Q "UPDATE EMPRESA SET Verificada = 1 WHERE Nif = 'EL_NIF'"
-```
+1. Registrar una empresa proveedora y otra compradora.
+2. Verificar ambas con el token del administrador
+   (`PATCH /api/v1/empresas/{id}/verificacion`). Sin ello no pueden operar.
+3. Dar de alta material con la proveedora (`POST /api/v1/items`).
+4. Buscarlo con la compradora (`GET /api/v1/catalogo`). El material propio
+   queda excluido de los resultados.
+5. Reservarlo (`POST /api/v1/reservas`). La respuesta incorpora los datos de
+   contacto de ambas partes, que es el objeto de la operación.
+6. Confirmar la reserva con la proveedora o cancelarla desde cualquiera de las
+   dos. La confirmación retira el material por transmisión; la cancelación lo
+   devuelve al catálogo.
 
 ### Comprobación del funcionamiento
 
-1. `POST /api/v1/auth/registro` — alta de empresa. Devuelve 201 y queda
-   pendiente de verificación.
-2. `POST /api/v1/auth/login` — devuelve 200 y el token.
-3. `POST /api/v1/auth/login` con la contraseña alterada — devuelve 401 con un
+1. `POST /api/v1/auth/login` con la contraseña alterada — devuelve 401 con un
    mensaje genérico.
-4. `GET /api/v1/materiales` — devuelve el catálogo de aleaciones.
-5. `POST /api/v1/items` — alta de un ítem. Devuelve 201.
-6. `PUT` y `DELETE` sobre ese ítem — devuelven 200 y 204 respectivamente; la
-   baja es lógica y el ítem pasa a estado retirado.
-7. Cualquier extremo sin token — devuelve 401:
+2. Cualquier extremo sin token — devuelve 401:
    `curl -k -i https://localhost:7054/api/v1/items`
-8. Un ítem perteneciente a otra empresa — devuelve 403, con independencia de
-   que la cuenta solicitante ostente el rol de proveedor.
+3. Un ítem perteneciente a otra empresa — devuelve 403, con independencia de
+   que la cuenta solicitante ostente el rol requerido.
+4. `POST /api/v1/reservas` sobre un ítem ya reservado — devuelve 409.
+5. Dos solicitudes simultáneas sobre el mismo ítem — una devuelve 201 y la otra
+   409, nunca ambas 201.
+
+## Scripts
+
+La carpeta `scripts/` contiene dos utilidades destinadas exclusivamente al
+entorno de desarrollo:
+
+- `generar-datos-prueba.sql` genera un catálogo sintético con dimensiones
+  distribuidas conforme a los formatos habituales de la chapa comercial. Los
+  registros reciben una ubicación con el prefijo `SINT-`, lo que permite
+  identificarlos y eliminarlos.
+- `medir-rendimiento.sql` compara el comportamiento de la búsqueda paramétrica
+  con y sin el índice compuesto, mediante las estadísticas de entrada y salida
+  del gestor.
+
+Los datos sintéticos han de eliminarse antes de cualquier demostración:
+
+```sql
+DELETE FROM ITEM_INVENTARIO WHERE Ubicacion LIKE 'SINT-%';
+```
 
 ## Gestión de la configuración sensible
 
@@ -210,4 +250,8 @@ el arranque a partir de la configuración del entorno.
 | `ManejadorGlobalDeExcepciones` | RNF-03 | 4.2, 4.7 |
 | `ServicioInventario` / `InventarioController` | RF-03, RD-01 | 4.4.1 |
 | `ClaimsPrincipalExtensiones` | RNF-03, CT-09 | 4.7 |
+| `ServicioAdministracion` / `EmpresasController` | RD-02 | 4.4.1 |
+| `RepositorioCatalogo` / `MotorBusqueda` | RF-04, RNF-01 | 4.4.1, 4.5.2 |
+| `RepositorioReservas` / `ServicioReservas` | RF-05, CT-06 | 4.4.4 |
+| `ProcesoDeExpiracionDeReservas` | RF-05 | 4.4.1 |
 | `docker-compose.yml` | RNF-02, CT-07 | 4.4.2 |
