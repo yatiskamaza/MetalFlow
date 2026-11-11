@@ -45,7 +45,7 @@ public class ServicioReservas
     /// La operación se ejecuta íntegramente dentro de una transacción que
     /// comienza recuperando el ítem con bloqueo exclusivo de fila. A partir de
     /// ese instante, cualquier otra transacción que pretenda reservar el mismo
-    /// ítem queda en espera hasta que la presente confirma o revierte, momento
+    /// ítem queda en espera hasta que esta se confirma o revierte, momento
     /// en el cual observará el estado ya actualizado y será rechazada.
     ///
     /// El bloqueo ha de preceder a la comprobación del estado: leer primero y
@@ -173,9 +173,13 @@ public class ServicioReservas
             // La transición del ítem es inseparable de la de la reserva: el
             // dominio practica ambas de forma conjunta, de modo que no pueda
             // quedar una sin la otra.
+            // El destino del material depende de que su propietario siga
+            // habilitado: si ha sido inhabilitado, el ítem no vuelve al catálogo.
+            var propietarioHabilitado = ObtenerSituacionDelPropietario(reserva);
+
             try
             {
-                reserva.Cancelar(reserva.Item);
+                reserva.Cancelar(reserva.Item, propietarioHabilitado);
             }
             catch (InvalidOperationException ex)
             {
@@ -244,16 +248,59 @@ public class ServicioReservas
         if (activa is null)
         {
             // Inconsistencia: el ítem figura reservado sin reserva activa que
-            // lo respalde. Se devuelve al catálogo.
-            item.Liberar();
+            // lo respalde. Se libera conforme a la regla general, que
+            // determina su destino según la situación de su propietario. Al
+            // no existir reserva de la que obtenerla, se consulta directamente.
+            var habilitado = await PropietarioHabilitadoAsync(item.EmpresaId, ct);
+            item.Liberar(habilitado);
             return;
         }
 
         if (activa.FechaExpiracion > DateTime.UtcNow) return;
 
-        activa.Expirar(item);
+        // La liberación diferida opera sobre el ítem bloqueado, que se recupera
+        // sin sus relaciones. El estado del propietario se obtiene de la
+        // reserva, que sí las incorpora.
+        var propietarioHabilitado = ObtenerSituacionDelPropietario(activa);
+        activa.Expirar(item, propietarioHabilitado);
 
         _unidadDeTrabajo.Reservas.Actualizar(activa);
+    }
+
+    /// <summary>
+    /// Obtiene la situación de la empresa propietaria del material reservado.
+    ///
+    /// La ausencia de la relación no se resuelve con un valor por defecto,
+    /// sino con una excepción: un valor que considerase inhabilitado al
+    /// propietario convertiría la omisión de la carga de la relación en una
+    /// retirada silenciosa del material, sin indicio alguno de la causa.
+    /// </summary>
+    private static bool ObtenerSituacionDelPropietario(Reserva reserva)
+    {
+        var cuenta = reserva.Item.Empresa.Cuenta
+            ?? throw new InvalidOperationException(
+                "No se ha cargado la cuenta de la empresa propietaria del material " +
+                $"de la reserva {reserva.Id}. La consulta ha de incorporar dicha relación.");
+
+        return cuenta.Activo;
+    }
+
+    /// <summary>
+    /// Consulta directamente la situación de la cuenta de una empresa, para
+    /// los supuestos en que no se dispone de una reserva de la que obtenerla.
+    /// La ausencia de la cuenta se trata como inconsistencia, por cuanto toda
+    /// empresa cuenta con una conforme al modelo.
+    /// </summary>
+    private async Task<bool> PropietarioHabilitadoAsync(Guid empresaId, CancellationToken ct)
+    {
+        var cuentas = await _unidadDeTrabajo.Usuarios.BuscarAsync(
+            u => u.EmpresaId == empresaId, ct);
+
+        var cuenta = cuentas.FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                $"La empresa {empresaId} carece de cuenta de acceso asociada.");
+
+        return cuenta.Activo;
     }
 
     private async Task ComprobarEmpresaVerificadaAsync(Guid empresaId, CancellationToken ct)
@@ -277,24 +324,24 @@ public class ServicioReservas
         FechaExpiracion = reserva.FechaExpiracion,
 
         ItemId = reserva.ItemId,
-        Familia = reserva.Item?.Material?.Familia ?? string.Empty,
-        Designacion = reserva.Item?.Material?.Designacion ?? string.Empty,
-        LargoMm = reserva.Item?.LargoMm ?? 0,
-        AnchoMm = reserva.Item?.AnchoMm ?? 0,
-        EspesorMm = reserva.Item?.EspesorMm ?? 0,
-        Cantidad = reserva.Item?.Cantidad ?? 0,
-        PesoKg = reserva.Item?.PesoKg,
-        Ubicacion = reserva.Item?.Ubicacion,
+        Familia = reserva.Item.Material.Familia,
+        Designacion = reserva.Item.Material.Designacion,
+        LargoMm = reserva.Item.LargoMm,
+        AnchoMm = reserva.Item.AnchoMm,
+        EspesorMm = reserva.Item.EspesorMm,
+        Cantidad = reserva.Item.Cantidad,
+        PesoKg = reserva.Item.PesoKg,
+        Ubicacion = reserva.Item.Ubicacion,
 
-        EmpresaProveedora = reserva.Item?.Empresa?.RazonSocial ?? string.Empty,
-        LocalidadProveedora = reserva.Item?.Empresa?.Localidad ?? string.Empty,
-        EmailContactoProveedora = reserva.Item?.Empresa?.EmailContacto ?? string.Empty,
-        TelefonoContactoProveedora = reserva.Item?.Empresa?.TelefonoContacto,
+        EmpresaProveedora = reserva.Item.Empresa.RazonSocial,
+        LocalidadProveedora = reserva.Item.Empresa.Localidad,
+        EmailContactoProveedora = reserva.Item.Empresa.EmailContacto,
+        TelefonoContactoProveedora = reserva.Item.Empresa.TelefonoContacto,
 
-        EmpresaCompradora = reserva.EmpresaCompradora?.RazonSocial ?? string.Empty,
-        LocalidadCompradora = reserva.EmpresaCompradora?.Localidad ?? string.Empty,
-        EmailContactoCompradora = reserva.EmpresaCompradora?.EmailContacto ?? string.Empty,
-        TelefonoContactoCompradora = reserva.EmpresaCompradora?.TelefonoContacto,
+        EmpresaCompradora = reserva.EmpresaCompradora.RazonSocial,
+        LocalidadCompradora = reserva.EmpresaCompradora.Localidad,
+        EmailContactoCompradora = reserva.EmpresaCompradora.EmailContacto,
+        TelefonoContactoCompradora = reserva.EmpresaCompradora.TelefonoContacto,
 
         Aviso = AvisoAlcance
     };

@@ -93,4 +93,20 @@ public class InventarioController : ControllerBase
         await _inventario.RetirarAsync(id, User.ObtenerEmpresaId(), ct);
         return NoContent();
     }
+
+    /// <summary>
+    /// Devuelve al catálogo un ítem propio previamente retirado. No procede
+    /// sobre el material transmitido mediante una reserva confirmada.
+    /// </summary>
+    [HttpPatch("{id:guid}/republicacion")]
+    [ProducesResponseType(typeof(ItemInventarioDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Republicar(Guid id, CancellationToken ct)
+    {
+        var item = await _inventario.RepublicarAsync(id, User.ObtenerEmpresaId(), ct);
+        return Ok(item);
+    }
 }

@@ -29,10 +29,10 @@ public interface IRepositorioReservas
     /// <summary>
     /// Reservas pendientes cuya vigencia ha transcurrido.
     ///
-    /// Los ítems reservados se cargan junto con ellas, por cuanto la
-    /// transición de estado de la reserva determina la del material y los
-    /// métodos de dominio lo exigen como parámetro. Se recuperan con
-    /// seguimiento de cambios, al ser objeto de modificación.
+    /// Se cargan junto con el ítem reservado y con la cuenta de su empresa
+    /// propietaria: la transición de la reserva determina la del material, y
+    /// el destino de este depende de si dicha empresa se encuentra habilitada.
+    /// Se recuperan con seguimiento de cambios, al ser objeto de modificación.
     /// </summary>
     Task<IReadOnlyList<Reserva>> ListarVencidasAsync(CancellationToken ct = default);
 
@@ -40,6 +40,19 @@ public interface IRepositorioReservas
     /// Recupera la reserva activa que recae sobre un ítem, si existe.
     /// </summary>
     Task<Reserva?> ObtenerReservaActivaAsync(Guid itemId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Indica si el ítem fue objeto de una reserva confirmada, esto es, si fue
+    /// transmitido. Permite distinguir el material vendido del retirado por su
+    /// propietario, supuestos que el modelo representa con un mismo estado.
+    /// </summary>
+    Task<bool> FueTransmitidoAsync(Guid itemId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Totalidad de las reservas del sistema, para la supervisión del
+    /// administrador (CU-11).
+    /// </summary>
+    Task<IReadOnlyList<Reserva>> ListarTodasAsync(CancellationToken ct = default);
 
     /// <summary>Reservas formalizadas por una empresa compradora.</summary>
     Task<IReadOnlyList<Reserva>> ListarDeCompradoraAsync(
@@ -51,7 +64,9 @@ public interface IRepositorioReservas
 
     /// <summary>
     /// Recupera una reserva concreta con sus relaciones cargadas y con
-    /// seguimiento de cambios, para las operaciones que la modifican.
+    /// seguimiento de cambios, para las operaciones que la modifican. Incluye
+    /// la cuenta de la empresa propietaria del material, cuya situación
+    /// determina el destino de este al cancelarse la reserva.
     /// </summary>
     Task<Reserva?> ObtenerConRelacionesAsync(Guid reservaId, CancellationToken ct = default);
 }

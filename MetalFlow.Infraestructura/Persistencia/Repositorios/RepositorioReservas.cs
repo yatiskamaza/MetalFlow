@@ -51,7 +51,7 @@ public class RepositorioReservas : IRepositorioReservas
         var ahora = DateTime.UtcNow;
 
         return await _contexto.Reservas
-            .Include(r => r.Item)
+            .Include(r => r.Item).ThenInclude(i => i.Empresa).ThenInclude(e => e.Cuenta)
             .Where(r => r.Estado == EstadoReserva.Pendiente && r.FechaExpiracion <= ahora)
             .OrderBy(r => r.FechaExpiracion)
             .ToListAsync(ct);
@@ -60,9 +60,22 @@ public class RepositorioReservas : IRepositorioReservas
     public async Task<Reserva?> ObtenerReservaActivaAsync(
         Guid itemId, CancellationToken ct = default)
         => await _contexto.Reservas
-            .Include(r => r.Item)
+            .Include(r => r.Item).ThenInclude(i => i.Empresa).ThenInclude(e => e.Cuenta)
             .FirstOrDefaultAsync(
                 r => r.ItemId == itemId && r.Estado == EstadoReserva.Pendiente, ct);
+
+    public async Task<bool> FueTransmitidoAsync(Guid itemId, CancellationToken ct = default)
+        => await _contexto.Reservas
+            .AnyAsync(r => r.ItemId == itemId && r.Estado == EstadoReserva.Confirmada, ct);
+
+    public async Task<IReadOnlyList<Reserva>> ListarTodasAsync(CancellationToken ct = default)
+        => await _contexto.Reservas
+            .AsNoTracking()
+            .Include(r => r.Item).ThenInclude(i => i.Material)
+            .Include(r => r.Item).ThenInclude(i => i.Empresa)
+            .Include(r => r.EmpresaCompradora)
+            .OrderByDescending(r => r.FechaReserva)
+            .ToListAsync(ct);
 
     public async Task<IReadOnlyList<Reserva>> ListarDeCompradoraAsync(
         Guid empresaId, CancellationToken ct = default)
@@ -95,7 +108,7 @@ public class RepositorioReservas : IRepositorioReservas
         Guid reservaId, CancellationToken ct = default)
         => await _contexto.Reservas
             .Include(r => r.Item).ThenInclude(i => i.Material)
-            .Include(r => r.Item).ThenInclude(i => i.Empresa)
+            .Include(r => r.Item).ThenInclude(i => i.Empresa).ThenInclude(e => e.Cuenta)
             .Include(r => r.EmpresaCompradora)
             .FirstOrDefaultAsync(r => r.Id == reservaId, ct);
 }

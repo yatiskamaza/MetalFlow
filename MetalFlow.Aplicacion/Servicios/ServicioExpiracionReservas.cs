@@ -1,3 +1,4 @@
+using MetalFlow.Dominio.Entidades;
 using MetalFlow.Dominio.Repositorios;
 using Microsoft.Extensions.Logging;
 
@@ -35,7 +36,8 @@ public class ServicioExpiracionReservas
     }
 
     /// <summary>
-    /// Expira las reservas vencidas y devuelve su material al catálogo.
+    /// Expira las reservas vencidas y libera su material, que vuelve al
+    /// catálogo o queda retirado según la situación de su propietario.
     ///
     /// La totalidad de las expiraciones se confirma en una única operación de
     /// persistencia, de modo que resulte atómica: o bien se practican todas, o
@@ -54,11 +56,15 @@ public class ServicioExpiracionReservas
         foreach (var reserva in vencidas)
         {
             // La transición del ítem es inseparable de la de la reserva, y el
-            // dominio la practica de forma conjunta. El ítem se obtiene de la
-            // relación, que la consulta ha cargado expresamente.
+            // dominio la practica de forma conjunta. El destino del material
+            // depende de que su propietario siga habilitado: si ha sido
+            // inhabilitado durante la vigencia de la reserva, el ítem queda
+            // retirado en lugar de volver al catálogo.
+            var propietarioHabilitado = ObtenerSituacionDelPropietario(reserva);
+
             try
             {
-                reserva.Expirar(reserva.Item);
+                reserva.Expirar(reserva.Item, propietarioHabilitado);
                 expiradas++;
             }
             catch (InvalidOperationException ex)
@@ -78,9 +84,31 @@ public class ServicioExpiracionReservas
         await _unidadDeTrabajo.ConfirmarAsync(ct);
 
         _registro.LogInformation(
-            "Expiradas {Expiradas} reservas vencidas; su material vuelve al catálogo.",
+            "Expiradas {Expiradas} reservas vencidas; su material ha sido liberado.",
             expiradas);
 
         return expiradas;
+    }
+
+    /// <summary>
+    /// Obtiene la situación de la empresa propietaria del material reservado.
+    ///
+    /// La ausencia de la relación no se resuelve con un valor por defecto,
+    /// sino con una excepción. Un valor por defecto que considerase
+    /// inhabilitado al propietario convertiría un error de programación —la
+    /// omisión de la carga de la relación en la consulta— en un comportamiento
+    /// erróneo y silencioso: el material de todas las empresas quedaría
+    /// retirado del catálogo sin indicio alguno de la causa. La excepción, en
+    /// cambio, interrumpe el ciclo y queda registrada por el proceso que lo
+    /// desencadena.
+    /// </summary>
+    private static bool ObtenerSituacionDelPropietario(Reserva reserva)
+    {
+        var cuenta = reserva.Item.Empresa.Cuenta
+            ?? throw new InvalidOperationException(
+                "No se ha cargado la cuenta de la empresa propietaria del material " +
+                $"de la reserva {reserva.Id}. La consulta ha de incorporar dicha relación.");
+
+        return cuenta.Activo;
     }
 }

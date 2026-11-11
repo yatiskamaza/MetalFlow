@@ -12,8 +12,9 @@ namespace MetalFlow.Dominio.Entidades;
 ///
 /// Un ítem nace disponible. Puede reservarse, y desde ahí volver a estar
 /// disponible —si la reserva se cancela o expira— o quedar retirado, si la
-/// operación se perfecciona. Puede asimismo retirarse directamente por
-/// decisión de su propietario. El estado retirado es terminal.
+/// operación se perfecciona o si su propietario ha sido inhabilitado. Puede
+/// asimismo retirarse directamente por decisión de su propietario, y
+/// republicarse si no fue transmitido.
 /// </summary>
 public class ItemInventario
 {
@@ -114,15 +115,58 @@ public class ItemInventario
     }
 
     /// <summary>
-    /// Devuelve el ítem al catálogo. Se invoca desde la cancelación y desde la
-    /// expiración de la reserva que lo retenía.
+    /// Libera el ítem de la reserva que lo retenía. Se invoca desde la
+    /// cancelación y desde la expiración de la reserva.
+    ///
+    /// El destino del material depende de la situación de su propietario. Si
+    /// la empresa se encuentra habilitada, el ítem vuelve al catálogo. Si ha
+    /// sido inhabilitada, queda retirado: devolverlo al catálogo expondría
+    /// material de una entidad que no puede ya atender las solicitudes que se
+    /// formulen sobre él.
+    ///
+    /// La regla reside aquí, y no en cada una de las operaciones que liberan
+    /// material, porque es el único punto común a todas ellas: cualquier
+    /// camino presente o futuro que libere un ítem queda sujeto a ella. El
+    /// estado del propietario se recibe como parámetro en lugar de
+    /// consultarse, de modo que la entidad no dependa de otra ajena a su
+    /// propio agregado.
     /// </summary>
-    public void Liberar()
+    public void Liberar(bool propietarioHabilitado)
     {
         if (Estado != EstadoItem.Reservado)
             throw new InvalidOperationException("Solo puede liberarse un ítem reservado.");
 
+        Estado = propietarioHabilitado ? EstadoItem.Disponible : EstadoItem.Retirado;
+    }
+
+    /// <summary>
+    /// Devuelve al catálogo un ítem previamente retirado.
+    ///
+    /// Permite a una empresa reincorporar el material que conserva tras una
+    /// retirada voluntaria o tras su rehabilitación. No procede sobre el
+    /// material transmitido: dado que el modelo emplea un mismo estado para
+    /// ambos supuestos, corresponde al servicio de aplicación verificar, antes
+    /// de invocar esta operación, que el ítem no fue objeto de una reserva
+    /// confirmada.
+    /// </summary>
+    public void Republicar()
+    {
+        if (Estado != EstadoItem.Retirado)
+            throw new InvalidOperationException("Solo puede republicarse un ítem retirado.");
+
         Estado = EstadoItem.Disponible;
+    }
+
+    /// <summary>
+    /// Retira el ítem del catálogo como consecuencia de la inhabilitación de su
+    /// propietario (CU-11). Afecta únicamente al material disponible: el
+    /// reservado se mantiene, por existir una expectativa legítima de la
+    /// empresa compradora, y el ya retirado no requiere acción alguna.
+    /// </summary>
+    public void RetirarPorInhabilitacion()
+    {
+        if (Estado == EstadoItem.Disponible)
+            Estado = EstadoItem.Retirado;
     }
 
     /// <summary>

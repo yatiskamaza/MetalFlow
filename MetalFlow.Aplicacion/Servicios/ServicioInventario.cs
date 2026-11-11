@@ -18,9 +18,13 @@ namespace MetalFlow.Aplicacion.Servicios;
 public class ServicioInventario
 {
     private readonly IUnitOfWork _unidadDeTrabajo;
+    private readonly IRepositorioReservas _reservas;
 
-    public ServicioInventario(IUnitOfWork unidadDeTrabajo)
-        => _unidadDeTrabajo = unidadDeTrabajo;
+    public ServicioInventario(IUnitOfWork unidadDeTrabajo, IRepositorioReservas reservas)
+    {
+        _unidadDeTrabajo = unidadDeTrabajo;
+        _reservas = reservas;
+    }
 
     /// <summary>Catálogo normalizado de aleaciones (RD-03).</summary>
     public async Task<IReadOnlyList<MaterialDto>> ListarMaterialesAsync(
@@ -173,6 +177,48 @@ public class ServicioInventario
 
         _unidadDeTrabajo.Items.Actualizar(item);
         await _unidadDeTrabajo.ConfirmarAsync(ct);
+    }
+
+    /// <summary>
+    /// Devuelve al catálogo un ítem propio previamente retirado.
+    ///
+    /// Permite a la empresa reincorporar el material que conserva, tanto tras
+    /// una retirada voluntaria como tras su rehabilitación (CU-11). No procede
+    /// sobre el material transmitido: el modelo representa con un mismo estado
+    /// la retirada por decisión del propietario y la transmisión del material,
+    /// de modo que la distinción se practica comprobando si el ítem fue objeto
+    /// de una reserva confirmada. Republicar un material ya vendido lo ofrecería
+    /// a otras empresas pese a no existir físicamente.
+    /// </summary>
+    public async Task<ItemInventarioDto> RepublicarAsync(
+        Guid itemId, Guid empresaId, CancellationToken ct = default)
+    {
+        await ComprobarEmpresaVerificadaAsync(empresaId, ct);
+
+        var item = await _unidadDeTrabajo.Items.ObtenerPorIdAsync(itemId, ct)
+            ?? throw new ExcepcionNoEncontrado("El ítem solicitado no existe.");
+
+        if (!item.PerteneceA(empresaId))
+            throw new ExcepcionAccesoDenegado();
+
+        if (await _reservas.FueTransmitidoAsync(itemId, ct))
+            throw new ExcepcionConflicto(
+                "El material fue transmitido mediante una reserva confirmada y no " +
+                "puede republicarse.");
+
+        try
+        {
+            item.Republicar();
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new ExcepcionDeNegocio(ex.Message);
+        }
+
+        _unidadDeTrabajo.Items.Actualizar(item);
+        await _unidadDeTrabajo.ConfirmarAsync(ct);
+
+        return await ObtenerDeLaEmpresaAsync(itemId, empresaId, ct);
     }
 
     // -----------------------------------------------------------------------

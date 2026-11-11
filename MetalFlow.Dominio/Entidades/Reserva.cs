@@ -67,14 +67,18 @@ public class Reserva
     }
 
     /// <summary>
-    /// Deja sin efecto la reserva y devuelve el material al catálogo.
+    /// Deja sin efecto la reserva y libera el material.
     ///
     /// Resulta accesible a ambas partes: la compradora puede desistir y la
     /// proveedora puede haber dispuesto del material entretanto. No procede,
     /// en cambio, sobre una reserva ya confirmada, por cuanto el material ha
     /// sido transmitido.
     /// </summary>
-    public void Cancelar(ItemInventario item)
+    /// <param name="propietarioHabilitado">
+    /// Situación de la empresa propietaria del material, que determina si este
+    /// vuelve al catálogo o queda retirado.
+    /// </param>
+    public void Cancelar(ItemInventario item, bool propietarioHabilitado)
     {
         ComprobarQueCorresponde(item);
 
@@ -83,17 +87,21 @@ public class Reserva
                 "Solo puede cancelarse una reserva pendiente.");
 
         Estado = EstadoReserva.Cancelada;
-        item.Liberar();
+        item.Liberar(propietarioHabilitado);
     }
 
     /// <summary>
-    /// Deja sin efecto la reserva por transcurso de su vigencia y devuelve el
-    /// material al catálogo.
+    /// Deja sin efecto la reserva por transcurso de su vigencia y libera el
+    /// material.
     ///
     /// No corresponde a actor alguno: es el propio sistema quien la practica,
     /// conforme al proceso descrito en el apartado 5.5.
     /// </summary>
-    public void Expirar(ItemInventario item)
+    /// <param name="propietarioHabilitado">
+    /// Situación de la empresa propietaria del material, que determina si este
+    /// vuelve al catálogo o queda retirado.
+    /// </param>
+    public void Expirar(ItemInventario item, bool propietarioHabilitado)
     {
         ComprobarQueCorresponde(item);
 
@@ -102,7 +110,7 @@ public class Reserva
                 "Solo puede expirar una reserva pendiente.");
 
         Estado = EstadoReserva.Expirada;
-        item.Liberar();
+        item.Liberar(propietarioHabilitado);
     }
 
     /// <summary>

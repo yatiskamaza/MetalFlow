@@ -51,7 +51,31 @@ public class Usuario
 
     public bool EsAdministrador() => TieneRol(Rol.Administrador);
 
-    public void Desactivar() => Activo = false;
+    /// <summary>
+    /// Inhabilita la cuenta, impidiendo su autenticación (CU-11). Dado que el
+    /// modelo asigna una única cuenta por empresa, la operación inhabilita
+    /// materialmente a la entidad.
+    /// </summary>
+    public void Desactivar()
+    {
+        if (!Activo)
+            throw new InvalidOperationException("La cuenta ya se encuentra desactivada.");
+
+        Activo = false;
+    }
+
+    /// <summary>
+    /// Restituye la capacidad de acceso de la cuenta (CU-11). No restaura la
+    /// disponibilidad del material retirado como consecuencia de la
+    /// inhabilitación, que corresponde republicar a la propia empresa.
+    /// </summary>
+    public void Reactivar()
+    {
+        if (Activo)
+            throw new InvalidOperationException("La cuenta ya se encuentra activa.");
+
+        Activo = true;
+    }
 
     /// <summary>
     /// Invariante del dominio: solo una cuenta de administrador puede carecer de empresa.
