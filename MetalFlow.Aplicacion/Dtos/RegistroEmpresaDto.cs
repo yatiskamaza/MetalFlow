@@ -12,8 +12,8 @@ public class RegistroEmpresaDto
     // --- Datos de la empresa (RD-02) ---
 
     [Required(ErrorMessage = "El identificador fiscal es obligatorio.")]
-    [StringLength(15, MinimumLength = 8,
-        ErrorMessage = "El identificador fiscal debe tener entre 8 y 15 caracteres.")]
+    [StringLength(15, MinimumLength = 8, ErrorMessage = "El identificador fiscal debe tener entre 8 y 15 caracteres.")]
+    [RegularExpression(@"^[a-zA-Z0-9]+$", ErrorMessage = "El formato del identificador fiscal no es válido (solo letras y números).")]
     public string Nif { get; set; } = null!;
 
     [Required(ErrorMessage = "La razón social es obligatoria.")]
@@ -54,8 +54,8 @@ public class RegistroEmpresaDto
     public string Email { get; set; } = null!;
 
     [Required(ErrorMessage = "La contraseña es obligatoria.")]
-    [StringLength(100, MinimumLength = 8,
-        ErrorMessage = "La contraseña debe tener al menos 8 caracteres.")]
+    [StringLength(100, MinimumLength = 8, ErrorMessage = "La contraseña debe tener al menos 8 caracteres.")]
+    [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$", ErrorMessage = "La contraseña debe contener al menos una mayúscula, una minúscula y un número.")]
     public string Password { get; set; } = null!;
 
     // --- Roles solicitados ---
