@@ -43,6 +43,7 @@ builder.Services.AddSingleton<IServicioHash, ServicioHashBCrypt>();
 builder.Services.AddSingleton<IProveedorTokens, ProveedorJWT>();
 builder.Services.AddScoped<IRepositorioCatalogo, RepositorioCatalogo>();
 builder.Services.AddScoped<MotorBusqueda>();
+builder.Services.AddScoped<ServicioAnuncios>();
 
 // ---------------------------------------------------------------------------
 // Servicios de caso de uso
