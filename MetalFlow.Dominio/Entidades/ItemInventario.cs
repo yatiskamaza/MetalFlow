@@ -112,6 +112,11 @@ public class ItemInventario
             throw new InvalidOperationException("Solo puede reservarse un ítem disponible.");
 
         Estado = EstadoItem.Reservado;
+        
+        if (Anuncio != null && Anuncio.Activo)
+        {
+            Anuncio.Despublicar();
+        }
     }
 
     /// <summary>
@@ -167,6 +172,11 @@ public class ItemInventario
     {
         if (Estado == EstadoItem.Disponible)
             Estado = EstadoItem.Retirado;
+        
+        if (Anuncio != null && Anuncio.Activo)
+        {
+            Anuncio.Despublicar();
+        }
     }
 
     /// <summary>
@@ -187,6 +197,11 @@ public class ItemInventario
                 "Solo puede retirarse por transmisión un ítem reservado.");
 
         Estado = EstadoItem.Retirado;
+        
+        if (Anuncio != null && Anuncio.Activo)
+        {
+            Anuncio.Despublicar();
+        }
     }
 
     /// <summary>
@@ -203,6 +218,11 @@ public class ItemInventario
                 "No puede retirarse un ítem con una reserva en curso.");
 
         Estado = EstadoItem.Retirado;
+        
+        if (Anuncio != null && Anuncio.Activo)
+        {
+            Anuncio.Despublicar();
+        }
     }
 
     /// <summary>Un retal se considera reutilizable mientras no haya sido retirado (RD-01).</summary>
@@ -221,3 +241,4 @@ public class ItemInventario
             throw new ArgumentException("El peso, de indicarse, debe ser estrictamente positivo.");
     }
 }
+
