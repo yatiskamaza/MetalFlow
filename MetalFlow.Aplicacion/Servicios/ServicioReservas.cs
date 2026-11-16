@@ -85,10 +85,13 @@ public class ServicioReservas
                 throw new ExcepcionNoEncontrado(
                     "El material ha sido retirado del catálogo.");
 
-            // Liberación diferida de las reservas vencidas. El sistema no
-            // dispone de un proceso que las caduque de forma automática, por lo
-            // que la comprobación se practica en el momento en que su vigencia
-            // resulta relevante: cuando otra empresa pretende el mismo material.
+            // Comprobación complementaria de la vigencia (apartado 5.5.3). La
+            // expiración corresponde al proceso periódico, que se ejecuta con
+            // el intervalo configurado; entre dos ciclos, una reserva vencida
+            // puede seguir figurando como pendiente. Si otra empresa pretende
+            // el material en ese intervalo, la reserva se expira aquí, bajo el
+            // mismo bloqueo, en lugar de rechazar la solicitud por una reserva
+            // que ya no está vigente.
             if (item.Estado == EstadoItem.Reservado)
                 await LiberarSiHaVencidoAsync(item, ct);
 
@@ -241,6 +244,12 @@ public class ServicioReservas
     // Operaciones auxiliares
     // -----------------------------------------------------------------------
 
+    /// <summary>
+    /// Expira la reserva que retiene el ítem si su vigencia ha transcurrido y
+    /// el proceso periódico aún no la ha practicado. Opera sobre el ítem ya
+    /// bloqueado, de modo que la expiración y la nueva reserva se confirman en
+    /// la misma transacción.
+    /// </summary>
     private async Task LiberarSiHaVencidoAsync(ItemInventario item, CancellationToken ct)
     {
         var activa = await _reservas.ObtenerReservaActivaAsync(item.Id, ct);
