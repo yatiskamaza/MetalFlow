@@ -8,7 +8,7 @@ namespace MetalFlow.Aplicacion.Dtos;
 /// la identificación de la empresa proveedora, necesaria para que el
 /// comprador valore el origen y la proximidad del material (RD-04, RD-07),
 /// pero omite todo dato de contacto. Dicha información se revela únicamente
-/// una vez confirmada una reserva, conforme al principio de minimización
+/// una vez formalizada una reserva, conforme al principio de minimización
 /// expuesto en el apartado 4.8.
 /// </summary>
 public class ItemCatalogoDto

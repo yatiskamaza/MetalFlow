@@ -29,7 +29,7 @@ public class RegistroEmpresaDto
     public string Localidad { get; set; } = null!;
 
     /// <summary>
-    /// Canal de contacto que se revelará a la contraparte tras confirmarse una
+    /// Canal de contacto que se revelará a la contraparte tras formalizarse una
     /// reserva (RD-06). Se recomienda emplear un buzón funcional, de modo que
     /// no constituya dato personal (apartado 4.8).
     /// </summary>

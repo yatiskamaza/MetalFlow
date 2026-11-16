@@ -15,7 +15,7 @@ public class Empresa
     public string Direccion { get; private set; } = null!;
     public string Localidad { get; private set; } = null!;
 
-    /// <summary>Canal de contacto que se revela a la contraparte tras confirmarse una reserva (RD-06).</summary>
+    /// <summary>Canal de contacto que se revela a la contraparte tras formalizarse una reserva (RD-06).</summary>
     public string EmailContacto { get; private set; } = null!;
     public string? TelefonoContacto { get; private set; }
 
