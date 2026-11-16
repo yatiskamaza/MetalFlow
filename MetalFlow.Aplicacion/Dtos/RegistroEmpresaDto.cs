@@ -11,9 +11,25 @@ public class RegistroEmpresaDto
 {
     // --- Datos de la empresa (RD-02) ---
 
+    /// <summary>
+    /// Identificador fiscal de la empresa. Se admite la estructura de los tres
+    /// identificadores españoles con los que puede operar una entidad:
+    /// NIF de persona física (ocho dígitos y letra), NIE (X, Y o Z, siete
+    /// dígitos y letra) y NIF de persona jurídica, antiguo CIF (letra de forma
+    /// jurídica, siete dígitos y carácter de control, numérico o alfabético).
+    ///
+    /// La validación es estructural: no calcula el carácter de control. La
+    /// acreditación efectiva de la empresa corresponde a la verificación
+    /// manual del administrador (CU-10), por lo que el cálculo no añadiría
+    /// garantía alguna sobre la condición profesional de la entidad.
+    ///
+    /// Se admiten minúsculas porque el servicio normaliza el identificador a
+    /// mayúsculas antes de comprobar su unicidad y almacenarlo.
+    /// </summary>
     [Required(ErrorMessage = "El identificador fiscal es obligatorio.")]
-    [StringLength(15, MinimumLength = 8, ErrorMessage = "El identificador fiscal debe tener entre 8 y 15 caracteres.")]
-    [RegularExpression(@"^[a-zA-Z0-9]+$", ErrorMessage = "El formato del identificador fiscal no es válido (solo letras y números).")]
+    [RegularExpression(
+        @"^([0-9]{8}[A-Za-z]|[XYZxyz][0-9]{7}[A-Za-z]|[ABCDEFGHJNPQRSUVWabcdefghjnpqrsuvw][0-9]{7}[0-9A-Ja-j])$",
+        ErrorMessage = "El identificador fiscal no tiene un formato válido de NIF, NIE o CIF.")]
     public string Nif { get; set; } = null!;
 
     [Required(ErrorMessage = "La razón social es obligatoria.")]
