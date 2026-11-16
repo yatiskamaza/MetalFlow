@@ -27,7 +27,7 @@ public class RepositorioReservas : IRepositorioReservas
     ///
     /// El parámetro se transmite de forma parametrizada y no por
     /// concatenación de cadenas, de modo que la consulta no resulta
-    /// susceptible de inyección (Tabla 23, OWASP A03).
+    /// susceptible de inyección (Tabla 23, OWASP A05).
     /// </summary>
     public async Task<ItemInventario?> ObtenerItemConBloqueoAsync(
         Guid itemId, CancellationToken ct = default)
