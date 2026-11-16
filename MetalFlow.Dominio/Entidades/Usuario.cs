@@ -6,7 +6,13 @@ namespace MetalFlow.Dominio.Entidades;
 /// Cuenta de acceso al sistema. Entidad de autenticación única: concentra las
 /// credenciales de todas las cuentas, tanto las vinculadas a una empresa (1:1)
 /// como la del administrador de la plataforma, que carece de empresa asociada
-/// y se aprovisiona como dato semilla en el despliegue inicial.
+/// y se aprovisiona en el arranque de la aplicación (InicializadorDeDatos).
+///
+/// La condición de que solo la cuenta del administrador carezca de empresa
+/// implica dos tablas y no admite restricción declarativa. La garantizan los
+/// dos únicos puntos en que se crean cuentas: el registro de empresas (CU-01),
+/// que asocia siempre la cuenta a la empresa creada en la misma operación, y
+/// el aprovisionamiento de la cuenta del administrador.
 /// </summary>
 public class Usuario
 {
@@ -76,10 +82,4 @@ public class Usuario
 
         Activo = true;
     }
-
-    /// <summary>
-    /// Invariante del dominio: solo una cuenta de administrador puede carecer de empresa.
-    /// No es expresable como restricción declarativa simple por implicar dos tablas.
-    /// </summary>
-    public bool CumpleInvarianteDeEmpresa() => EmpresaId is not null || EsAdministrador();
 }
