@@ -6,23 +6,27 @@ Universitat Carlemany.
 
 ## Estado actual
 
-Fase F3 (desarrollo del backend). Implementado hasta el momento:
+Fase F3 (desarrollo del backend) completada. En curso, en paralelo, las fases F4
+(proceso micro-ETL) y F5 (frontend). Implementado hasta el momento:
 
 - Estructura de la solución en cuatro proyectos conforme al diagrama de componentes.
-- Modelo de dominio: 8 entidades y 4 enumeraciones.
+- Modelo de dominio: 9 entidades y 4 enumeraciones.
 - Contexto de persistencia con restricciones, índices y catálogo de materiales.
 - Acceso a datos mediante los patrones Repository y Unit of Work.
 - Autenticación con JSON Web Tokens y derivación de contraseñas con BCrypt (RF-01).
 - Tratamiento homogéneo de errores mediante manejador global de excepciones.
-- Gestión manual del inventario con autorización por pertenencia (RF-03).
+- Gestión manual del inventario con autorización por pertenencia (RF-03),
+  incluida la republicación de material retirado.
 - Consulta del catálogo normalizado de aleaciones (RD-03).
 - Verificación de empresas por el administrador (CU-10, RD-02).
+- Gestión de cuentas y supervisión de reservas por el administrador (CU-11).
+- Publicación, modificación y retirada de anuncios (CU-06, RF-06).
 - Motor de búsqueda paramétrica del catálogo, con paginación (RF-04, RNF-01).
 - Flujo de reserva con control de concurrencia y expiración automática
   (RF-05, RD-06).
 
-Pendiente: gestión de cuentas y supervisión (CU-11), publicación de anuncios
-(RF-06), proceso micro-ETL (RF-02), frontend y contenedorización completa.
+Pendiente: proceso micro-ETL (RF-02), frontend y contenedorización completa
+(RNF-02).
 
 ## Estructura de la solución
 
@@ -61,7 +65,7 @@ permite expresar por sus medios ordinarios.
 - **Herramienta de línea de comandos de EF Core**:
   `dotnet tool install --global dotnet-ef`
 - **Git**
-- **Node.js 24** y npm (necesarios únicamente para el frontend, aún no iniciado)
+- **Node.js 24** y npm (necesarios únicamente para el frontend)
 
 ## Puesta en marcha
 
@@ -162,6 +166,11 @@ especificación el esquema de autenticación correspondiente.
 | POST | `/api/v1/items` | proveedor | CU-04 |
 | PUT | `/api/v1/items/{id}` | proveedor | CU-04 |
 | DELETE | `/api/v1/items/{id}` | proveedor | CU-04 |
+| PATCH | `/api/v1/items/{id}/republicacion` | proveedor | CU-11 (FA1) |
+| GET | `/api/v1/anuncios` | proveedor | CU-06 |
+| POST | `/api/v1/anuncios` | proveedor | CU-06 |
+| PUT | `/api/v1/anuncios/{id}` | proveedor | CU-06 |
+| DELETE | `/api/v1/anuncios/{id}` | proveedor | CU-06 |
 | GET | `/api/v1/catalogo` | comprador | CU-07 |
 | GET | `/api/v1/catalogo/{id}` | comprador | CU-08 |
 | POST | `/api/v1/reservas` | comprador | CU-09 |
@@ -172,12 +181,26 @@ especificación el esquema de autenticación correspondiente.
 | GET | `/api/v1/empresas` | administrador | CU-10 |
 | GET | `/api/v1/empresas/{id}` | administrador | CU-10 |
 | PATCH | `/api/v1/empresas/{id}/verificacion` | administrador | CU-10 |
+| GET | `/api/v1/usuarios` | administrador | CU-11 |
+| PATCH | `/api/v1/usuarios/{id}/estado` | administrador | CU-11 |
+| GET | `/api/v1/supervision/reservas` | administrador | CU-11 |
 
 Conviene distinguir los extremos de inventario de los de catálogo. Los primeros
 operan sobre el material propio de la empresa proveedora y quedan sujetos a la
-autorización por pertenencia; los segundos exponen el material publicado por
+autorización por pertenencia; los segundos exponen el material ofrecido por
 terceros, con un conjunto de datos distinto que excluye toda información de
 contacto hasta la formalización de una reserva.
+
+### Catálogo y anuncios
+
+El material disponible figura en el catálogo cuente o no con anuncio. El anuncio
+aporta la información comercial (título, descripción y precio), que el catálogo
+muestra únicamente cuando el material está disponible y el anuncio está activo.
+Las transiciones de estado del material no modifican el anuncio: si una reserva
+se cancela o expira, el material vuelve al catálogo con sus condiciones
+comerciales. La republicación de material retirado, en cambio, desactiva el
+anuncio, que ha de revisarse y reactivarse mediante su modificación
+(`PUT /api/v1/anuncios/{id}`).
 
 ### Flujo completo de uso
 
@@ -185,11 +208,13 @@ contacto hasta la formalización de una reserva.
 2. Verificar ambas con el token del administrador
    (`PATCH /api/v1/empresas/{id}/verificacion`). Sin ello no pueden operar.
 3. Dar de alta material con la proveedora (`POST /api/v1/items`).
-4. Buscarlo con la compradora (`GET /api/v1/catalogo`). El material propio
+4. Opcionalmente, publicar un anuncio sobre dicho material
+   (`POST /api/v1/anuncios`).
+5. Buscarlo con la compradora (`GET /api/v1/catalogo`). El material propio
    queda excluido de los resultados.
-5. Reservarlo (`POST /api/v1/reservas`). La respuesta incorpora los datos de
+6. Reservarlo (`POST /api/v1/reservas`). La respuesta incorpora los datos de
    contacto de ambas partes, que es el objeto de la operación.
-6. Confirmar la reserva con la proveedora o cancelarla desde cualquiera de las
+7. Confirmar la reserva con la proveedora o cancelarla desde cualquiera de las
    dos. La confirmación retira el material por transmisión; la cancelación lo
    devuelve al catálogo.
 
@@ -204,6 +229,15 @@ contacto hasta la formalización de una reserva.
 4. `POST /api/v1/reservas` sobre un ítem ya reservado — devuelve 409.
 5. Dos solicitudes simultáneas sobre el mismo ítem — una devuelve 201 y la otra
    409, nunca ambas 201.
+6. Cancelación de una reserva sobre material con anuncio — el material vuelve al
+   catálogo con su precio.
+7. Retirada y republicación de material con anuncio — el material vuelve al
+   catálogo sin información comercial, y el anuncio figura como inactivo en
+   `GET /api/v1/anuncios`.
+8. Detalle de un ítem reservado (`GET /api/v1/catalogo/{id}`) — muestra el
+   estado «Reservado» y ninguna información comercial.
+9. `PATCH /api/v1/usuarios/{id}/estado` sobre la propia cuenta del
+   administrador, con `activo: false` — devuelve 400.
 
 ## Scripts
 
@@ -243,15 +277,18 @@ el arranque a partir de la configuración del entorno.
 | `Usuario` / `UsuarioRol` | RF-01, RD-02 | 4.5.2 |
 | `ClasificacionRegulatoria` | RD-01 | 4.4.3 |
 | `CargaInventario` / `IncidenciaCarga` | RF-02, RD-04 | 4.4.4 |
-| `RepositorioEF` / `UnitOfWork` | CT-02, CT-06 | 4.2 |
-| `ServicioIdentidad` / `ProveedorJWT` | RF-01, CT-01 | 4.4.1 |
-| `ServicioHashBCrypt` | RNF-03, CT-08 | 4.7 |
-| `InicializadorDeDatos` | RD-02 | 4.5.2 |
-| `ManejadorGlobalDeExcepciones` | RNF-03 | 4.2, 4.7 |
-| `ServicioInventario` / `InventarioController` | RF-03, RD-01 | 4.4.1 |
-| `ClaimsPrincipalExtensiones` | RNF-03, CT-09 | 4.7 |
-| `ServicioAdministracion` / `EmpresasController` | RD-02 | 4.4.1 |
-| `RepositorioCatalogo` / `MotorBusqueda` | RF-04, RNF-01 | 4.4.1, 4.5.2 |
-| `RepositorioReservas` / `ServicioReservas` | RF-05, CT-06 | 4.4.4 |
-| `ProcesoDeExpiracionDeReservas` | RF-05 | 4.4.1 |
+| `RepositorioEF` / `UnitOfWork` | CT-02, CT-06 | 4.2, 5.2.3 |
+| `ServicioIdentidad` / `ProveedorJWT` | RF-01, CT-01 | 4.4.1, 5.2.4 |
+| `ServicioHashBCrypt` | RNF-03, CT-08 | 4.7, 5.2.4 |
+| `InicializadorDeDatos` | RD-02 | 4.5.2, 5.2.2 |
+| `ManejadorGlobalDeExcepciones` | RNF-03 | 4.2, 4.7, 5.2.5 |
+| `ServicioInventario` / `InventarioController` | RF-03, RD-01 | 4.4.1, 5.2.6 |
+| `MaterialesController` | RD-03 | 5.2.6 |
+| `ClaimsPrincipalExtensiones` | RNF-03, CT-09 | 4.7, 5.2.6 |
+| `ServicioAdministracion` / `EmpresasController` | RD-02 | 4.4.1, 5.2.8 |
+| `ServicioAdministracion` / `UsuariosController` | RNF-03, RD-04 | 4.3.4, 5.2.9 |
+| `ServicioAnuncios` / `AnunciosController` | RF-06 | 4.4.1, 5.2.10 |
+| `RepositorioCatalogo` / `MotorBusqueda` | RF-04, RNF-01 | 4.4.1, 4.5.2, 5.4 |
+| `RepositorioReservas` / `ServicioReservas` | RF-05, CT-06 | 4.4.4, 5.5 |
+| `ServicioExpiracionReservas` / `ProcesoDeExpiracionDeReservas` | RF-05 | 4.4.1, 5.5.3 |
 | `docker-compose.yml` | RNF-02, CT-07 | 4.4.2 |

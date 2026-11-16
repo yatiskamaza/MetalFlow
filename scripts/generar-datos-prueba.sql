@@ -24,7 +24,10 @@
     ADVERTENCIA
         Destinado exclusivamente al entorno de desarrollo. Los registros
         generados son ficticios y han de eliminarse antes de cualquier
-        demostración del prototipo.
+        demostración del prototipo. Su ubicación incorpora el prefijo SINT-,
+        que permite identificarlos y eliminarlos:
+
+           DELETE FROM ITEM_INVENTARIO WHERE Ubicacion LIKE 'SINT-%';
 */
 
 SET NOCOUNT ON;
@@ -79,7 +82,7 @@ VALUES
     (NEWID(), @EmpresaId, @MaterialId, NULL, @Largo, @Ancho, @Espesor,
      (ABS(CHECKSUM(NEWID())) % 10) + 1,
      @Peso,
-     CONCAT('Nave ', (ABS(CHECKSUM(NEWID())) % 3) + 1),
+     CONCAT('SINT-Nave ', (ABS(CHECKSUM(NEWID())) % 3) + 1),
      1, -- Disponible
      CASE WHEN (ABS(CHECKSUM(NEWID())) % 5) = 0 THEN 2 ELSE 1 END,
      DATEADD(MINUTE, -(ABS(CHECKSUM(NEWID())) % 525600), SYSUTCDATETIME()));
