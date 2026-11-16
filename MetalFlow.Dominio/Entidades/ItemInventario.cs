@@ -15,6 +15,15 @@ namespace MetalFlow.Dominio.Entidades;
 /// operación se perfecciona o si su propietario ha sido inhabilitado. Puede
 /// asimismo retirarse directamente por decisión de su propietario, y
 /// republicarse si no fue transmitido.
+///
+/// RELACIÓN CON EL ANUNCIO
+///
+/// Las transiciones de estado del ítem no alteran el anuncio asociado. La
+/// visibilidad de la información comercial resulta de la combinación de
+/// ambos estados: el catálogo solo la muestra cuando el ítem se encuentra
+/// disponible y el anuncio está activo (RN-4). La desactivación del anuncio
+/// corresponde a la decisión del proveedor y, conforme a RN-5, al servicio de
+/// aplicación cuando republica material previamente retirado.
 /// </summary>
 public class ItemInventario
 {
@@ -112,11 +121,6 @@ public class ItemInventario
             throw new InvalidOperationException("Solo puede reservarse un ítem disponible.");
 
         Estado = EstadoItem.Reservado;
-        
-        if (Anuncio != null && Anuncio.Activo)
-        {
-            Anuncio.Despublicar();
-        }
     }
 
     /// <summary>
@@ -172,11 +176,6 @@ public class ItemInventario
     {
         if (Estado == EstadoItem.Disponible)
             Estado = EstadoItem.Retirado;
-        
-        if (Anuncio != null && Anuncio.Activo)
-        {
-            Anuncio.Despublicar();
-        }
     }
 
     /// <summary>
@@ -197,11 +196,6 @@ public class ItemInventario
                 "Solo puede retirarse por transmisión un ítem reservado.");
 
         Estado = EstadoItem.Retirado;
-        
-        if (Anuncio != null && Anuncio.Activo)
-        {
-            Anuncio.Despublicar();
-        }
     }
 
     /// <summary>
@@ -218,11 +212,6 @@ public class ItemInventario
                 "No puede retirarse un ítem con una reserva en curso.");
 
         Estado = EstadoItem.Retirado;
-        
-        if (Anuncio != null && Anuncio.Activo)
-        {
-            Anuncio.Despublicar();
-        }
     }
 
     /// <summary>Un retal se considera reutilizable mientras no haya sido retirado (RD-01).</summary>
@@ -241,4 +230,3 @@ public class ItemInventario
             throw new ArgumentException("El peso, de indicarse, debe ser estrictamente positivo.");
     }
 }
-

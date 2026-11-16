@@ -189,6 +189,12 @@ public class ServicioInventario
     /// de modo que la distinción se practica comprobando si el ítem fue objeto
     /// de una reserva confirmada. Republicar un material ya vendido lo ofrecería
     /// a otras empresas pese a no existir físicamente.
+    ///
+    /// La republicación no restituye la información comercial (RN-5, FA1.5):
+    /// durante la retirada el material pudo variar y el precio quedar
+    /// desfasado. Si el ítem conserva un anuncio activo, se desactiva en la
+    /// misma operación, de modo que la empresa haya de revisarlo de forma
+    /// expresa —mediante su modificación— antes de que vuelva a mostrarse.
     /// </summary>
     public async Task<ItemInventarioDto> RepublicarAsync(
         Guid itemId, Guid empresaId, CancellationToken ct = default)
@@ -216,6 +222,21 @@ public class ServicioInventario
         }
 
         _unidadDeTrabajo.Items.Actualizar(item);
+
+        // El anuncio se recupera de forma aislada, sin relaciones, por lo que
+        // su marca como modificado no se extiende a ninguna otra entidad
+        // (apartado 5.2.10). Ambos cambios se confirman en una única operación
+        // de persistencia, de modo que no pueda quedar el ítem republicado con
+        // el anuncio anterior todavía activo.
+        var anuncio = await _unidadDeTrabajo.Anuncios.ObtenerUnoAsync(
+            a => a.ItemId == itemId, ct);
+
+        if (anuncio is { Activo: true })
+        {
+            anuncio.Despublicar();
+            _unidadDeTrabajo.Anuncios.Actualizar(anuncio);
+        }
+
         await _unidadDeTrabajo.ConfirmarAsync(ct);
 
         return await ObtenerDeLaEmpresaAsync(itemId, empresaId, ct);
@@ -265,13 +286,19 @@ public class ServicioInventario
                 "El material indicado no figura en el catálogo de aleaciones.");
     }
 
+    /// <summary>
+    /// Requiere que la consulta haya cargado el material del ítem, como hacen
+    /// todas las que preceden a esta proyección. Su ausencia constituiría un
+    /// error de programación, que debe manifestarse como tal y no traducirse
+    /// en una respuesta con la designación vacía.
+    /// </summary>
     private static ItemInventarioDto Proyectar(ItemInventario item) => new()
     {
         Id = item.Id,
         MaterialId = item.MaterialId,
-        Familia = item.Material?.Familia ?? string.Empty,
-        Designacion = item.Material?.Designacion ?? string.Empty,
-        Norma = item.Material?.Norma,
+        Familia = item.Material.Familia,
+        Designacion = item.Material.Designacion,
+        Norma = item.Material.Norma,
         LargoMm = item.LargoMm,
         AnchoMm = item.AnchoMm,
         EspesorMm = item.EspesorMm,

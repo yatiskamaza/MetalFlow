@@ -1,6 +1,7 @@
 using MetalFlow.Aplicacion.Dtos;
 using MetalFlow.Aplicacion.Excepciones;
 using MetalFlow.Dominio.Entidades;
+using MetalFlow.Dominio.Enumeraciones;
 using MetalFlow.Dominio.Repositorios;
 
 namespace MetalFlow.Aplicacion.Servicios;
@@ -105,12 +106,29 @@ public class MotorBusqueda
                 $"El valor mínimo del {dimension} no puede exceder al máximo.");
     }
 
+    /// <summary>
+    /// La información comercial solo se incorpora cuando el ítem se encuentra
+    /// disponible y su anuncio está activo (RN-4). La condición sobre el ítem
+    /// resulta necesaria en el detalle, que admite también los ítems
+    /// reservados (excepción E1 de CU-08): el comprador ha de advertir que el
+    /// material ya no está disponible, no recibir las condiciones comerciales
+    /// de una oferta que no puede aceptar.
+    /// </summary>
+    private static bool MuestraInformacionComercial(ItemInventario item)
+        => item.Estado == EstadoItem.Disponible && item.Anuncio is { Activo: true };
+
+    /// <summary>
+    /// Requiere que la consulta haya cargado el material, la empresa y el
+    /// anuncio del ítem, como hacen las dos operaciones del repositorio de
+    /// catálogo. Su ausencia constituiría un error de programación, que debe
+    /// manifestarse como tal y no traducirse en una respuesta con datos vacíos.
+    /// </summary>
     private static ItemCatalogoDto Proyectar(ItemInventario item) => new()
     {
         Id = item.Id,
-        Familia = item.Material?.Familia ?? string.Empty,
-        Designacion = item.Material?.Designacion ?? string.Empty,
-        Norma = item.Material?.Norma,
+        Familia = item.Material.Familia,
+        Designacion = item.Material.Designacion,
+        Norma = item.Material.Norma,
         LargoMm = item.LargoMm,
         AnchoMm = item.AnchoMm,
         EspesorMm = item.EspesorMm,
@@ -118,15 +136,16 @@ public class MotorBusqueda
         PesoKg = item.PesoKg,
         Clasificacion = item.Clasificacion.ToString(),
         Estado = item.Estado.ToString(),
-        EmpresaProveedora = item.Empresa?.RazonSocial ?? string.Empty,
-        Localidad = item.Empresa?.Localidad ?? string.Empty,
-        EmpresaVerificada = item.Empresa?.Verificada ?? false,
+        EmpresaProveedora = item.Empresa.RazonSocial,
+        Localidad = item.Empresa.Localidad,
+        EmpresaVerificada = item.Empresa.Verificada,
         FechaAlta = item.FechaAlta,
 
-        // Datos comerciales, presentes solo si el ítem cuenta con anuncio
-        // activo. Su ausencia no impide que el material figure en el catálogo.
-        Titulo = item.Anuncio is { Activo: true } ? item.Anuncio.Titulo : null,
-        Descripcion = item.Anuncio is { Activo: true } ? item.Anuncio.Descripcion : null,
-        Precio = item.Anuncio is { Activo: true } ? item.Anuncio.Precio : null
+        // Datos comerciales, presentes solo si el ítem está disponible y cuenta
+        // con anuncio activo. Su ausencia no impide que el material figure en
+        // el catálogo.
+        Titulo = MuestraInformacionComercial(item) ? item.Anuncio!.Titulo : null,
+        Descripcion = MuestraInformacionComercial(item) ? item.Anuncio!.Descripcion : null,
+        Precio = MuestraInformacionComercial(item) ? item.Anuncio!.Precio : null
     };
 }
